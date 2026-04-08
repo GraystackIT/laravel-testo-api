@@ -1,0 +1,49 @@
+{
+    "name": "graystack/laravel-testo-api",
+    "description": "Laravel package for the Testo Saveris Data API, built on Saloon 4",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "testo", "saveris", "temperature", "humidity", "logger", "saloon"],
+    "authors": [
+        {
+            "name": "Graystack",
+            "email": "dev@graystack.it"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/http": "^10.0|^11.0|^12.0",
+        "saloonphp/saloon": "^4.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "pestphp/pest": "^2.0|^3.0",
+        "pestphp/pest-plugin-laravel": "^2.0|^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Graystack\\TestoCloud\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Graystack\\TestoCloud\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Graystack\\TestoCloud\\TestoCloudServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
