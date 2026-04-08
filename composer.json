@@ -4,10 +4,10 @@
     "type": "library",
     "license": "MIT",
     "keywords": ["laravel", "testo", "saveris", "temperature", "humidity", "logger", "saloon"],
+    "homepage": "https://github.com/GraystackIT/laravel-testo-api",
     "authors": [
         {
-            "name": "Graystack",
-            "email": "dev@graystack.it"
+            "name": "GraystackIT"
         }
     ],
     "require": {
