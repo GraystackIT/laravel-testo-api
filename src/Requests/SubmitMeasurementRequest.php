@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Requests;
+namespace GraystackIT\TestoCloud\Requests;
 
 use Carbon\Carbon;
 use Saloon\Contracts\Body\HasBody;

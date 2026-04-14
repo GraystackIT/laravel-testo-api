@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Parsers;
+namespace GraystackIT\TestoCloud\Parsers;
 
 use Illuminate\Support\Facades\Log;
 

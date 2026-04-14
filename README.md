@@ -12,7 +12,7 @@ Retrieve historical temperature and humidity measurements from Testo IoT data lo
 ## Installation
 
 ```bash
-composer require graystack/laravel-testo-api
+composer require graystackit/laravel-testo-api
 ```
 
 Laravel auto-discovers the service provider. Then publish the config file:
@@ -46,7 +46,7 @@ Resolve `TestoCloudClient` from the container or inject it via dependency inject
 ### List all logger devices
 
 ```php
-use Graystack\TestoCloud\TestoCloudClient;
+use GraystackIT\TestoCloud\TestoCloudClient;
 
 $client = app(TestoCloudClient::class);
 
@@ -106,7 +106,7 @@ $content = $client->downloadDataFile($url);
 ### Parse NDJSON measurement data
 
 ```php
-use Graystack\TestoCloud\Parsers\MeasurementNdjsonParser;
+use GraystackIT\TestoCloud\Parsers\MeasurementNdjsonParser;
 
 $parser = new MeasurementNdjsonParser();
 $measurements = $parser->parse($content);
@@ -124,10 +124,10 @@ $measurements = $parser->parse($content);
 
 ## Error Handling
 
-All client methods throw `Graystack\TestoCloud\Exceptions\TestoApiException` on failure (extends `RuntimeException`).
+All client methods throw `GraystackIT\TestoCloud\Exceptions\TestoApiException` on failure (extends `RuntimeException`).
 
 ```php
-use Graystack\TestoCloud\Exceptions\TestoApiException;
+use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 
 try {
     $loggers = $client->getAllLoggers();

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Connectors;
+namespace GraystackIT\TestoCloud\Connectors;
 
 use Saloon\Http\Connector;
 use Saloon\Traits\Plugins\AcceptsJson;

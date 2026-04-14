@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Exceptions;
+namespace GraystackIT\TestoCloud\Exceptions;
 
 use RuntimeException;
 

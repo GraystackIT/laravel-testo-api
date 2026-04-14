@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Tests;
+namespace GraystackIT\TestoCloud\Tests;
 
-use Graystack\TestoCloud\TestoCloudServiceProvider;
+use GraystackIT\TestoCloud\TestoCloudServiceProvider;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 
 class TestCase extends OrchestraTestCase

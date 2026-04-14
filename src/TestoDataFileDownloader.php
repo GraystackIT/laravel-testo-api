@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud;
+namespace GraystackIT\TestoCloud;
 
-use Graystack\TestoCloud\Exceptions\TestoApiException;
+use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud;
+namespace GraystackIT\TestoCloud;
 
-use Graystack\TestoCloud\Connectors\TestoDataConnector;
+use GraystackIT\TestoCloud\Connectors\TestoDataConnector;
 use Illuminate\Support\ServiceProvider;
 
 class TestoCloudServiceProvider extends ServiceProvider

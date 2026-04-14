@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Graystack\TestoCloud\Data;
+namespace GraystackIT\TestoCloud\Data;
 
 class MeasurementStatusResponse
 {

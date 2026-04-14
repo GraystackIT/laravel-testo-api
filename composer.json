@@ -1,5 +1,5 @@
 {
-    "name": "graystack/laravel-testo-api",
+    "name": "graystackit/laravel-testo-api",
     "description": "Laravel package for the Testo Saveris Data API, built on Saloon 4",
     "type": "library",
     "license": "MIT",
@@ -23,18 +23,18 @@
     },
     "autoload": {
         "psr-4": {
-            "Graystack\\TestoCloud\\": "src/"
+            "GraystackIT\\TestoCloud\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Graystack\\TestoCloud\\Tests\\": "tests/"
+            "GraystackIT\\TestoCloud\\Tests\\": "tests/"
         }
     },
     "extra": {
         "laravel": {
             "providers": [
-                "Graystack\\TestoCloud\\TestoCloudServiceProvider"
+                "GraystackIT\\TestoCloud\\TestoCloudServiceProvider"
             ]
         }
     },
