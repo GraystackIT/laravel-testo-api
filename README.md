@@ -1,4 +1,4 @@
-# laravel-testo-cloud
+# graystackit/laravel-testo-cloud
 
 A Laravel package for the **Testo Saveris Data API**, built on [Saloon 4](https://docs.saloon.dev/).
 
