@@ -6,8 +6,8 @@ Retrieve historical temperature and humidity measurements from Testo IoT data lo
 
 ## Requirements
 
-- PHP 8.2+
-- Laravel 10, 11, or 12
+- PHP 8.3+
+- Laravel 11, 12, or 13
 
 ## Installation
 
