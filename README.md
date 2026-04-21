@@ -25,12 +25,6 @@ php artisan vendor:publish --tag=testo-cloud-config
 
 ### API credentials — `testo-cloud.php`
 
-Publish with:
-
-```bash
-php artisan vendor:publish --tag=testo-cloud-config
-```
-
 Add the following to your `.env` file:
 
 ```env
@@ -339,11 +333,10 @@ Run the migration to create the `testo_measurements` table:
 php artisan migrate
 ```
 
-Or publish the migration first if you want to customise it:
+To customise the migration before running it, publish it first:
 
 ```bash
 php artisan vendor:publish --tag=testo-migrations
-php artisan migrate
 ```
 
 #### `testo_measurements` schema
