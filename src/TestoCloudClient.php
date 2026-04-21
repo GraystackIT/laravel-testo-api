@@ -6,17 +6,30 @@ namespace GraystackIT\TestoCloud;
 
 use Carbon\Carbon;
 use GraystackIT\TestoCloud\Connectors\TestoDataConnector;
+use GraystackIT\TestoCloud\Data\AsyncStatusResponse;
+use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
 use GraystackIT\TestoCloud\Data\LoggerDevice;
 use GraystackIT\TestoCloud\Data\MeasurementStatusResponse;
 use GraystackIT\TestoCloud\Data\MeasurementSubmitResponse;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
+use GraystackIT\TestoCloud\Requests\CheckAlarmStatusRequest;
+use GraystackIT\TestoCloud\Requests\CheckEquipmentStatusRequest;
 use GraystackIT\TestoCloud\Requests\CheckMeasurementStatusRequest;
+use GraystackIT\TestoCloud\Requests\CheckMeasuringObjectStatusRequest;
+use GraystackIT\TestoCloud\Requests\CheckSensorStatusRequest;
+use GraystackIT\TestoCloud\Requests\CheckTaskStatusRequest;
 use GraystackIT\TestoCloud\Requests\GetLoggersRequest;
 use GraystackIT\TestoCloud\Requests\GetTokenRequest;
+use GraystackIT\TestoCloud\Requests\SubmitAlarmRequest;
+use GraystackIT\TestoCloud\Requests\SubmitEquipmentRequest;
 use GraystackIT\TestoCloud\Requests\SubmitMeasurementRequest;
+use GraystackIT\TestoCloud\Requests\SubmitMeasuringObjectRequest;
+use GraystackIT\TestoCloud\Requests\SubmitSensorStatusRequest;
+use GraystackIT\TestoCloud\Requests\SubmitTaskRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Saloon\Exceptions\Request\RequestException;
+use Saloon\Http\Request as SaloonRequest;
 
 class TestoCloudClient
 {
@@ -24,6 +37,10 @@ class TestoCloudClient
         private readonly TestoDataConnector $connector,
         private readonly TestoDataFileDownloader $downloader,
     ) {}
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Measurements (existing)
+    // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Submit an asynchronous measurement data request.
@@ -171,6 +188,305 @@ class TestoCloudClient
         return $loggers;
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Alarms  POST /v3/alarms  •  GET /v3/alarms/{uuid}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initiate an asynchronous historical alarm export.
+     *
+     * @throws \InvalidArgumentException  when $from is not before $to
+     * @throws TestoApiException
+     */
+    public function submitAlarmRequest(Carbon $from, Carbon $to, string $format = 'JSON'): AsyncSubmitResponse
+    {
+        if ($from->greaterThanOrEqualTo($to)) {
+            throw new \InvalidArgumentException(
+                "The \$from date ({$from->toIso8601String()}) must be before the \$to date ({$to->toIso8601String()})."
+            );
+        }
+
+        Log::info('TestoCloudClient: submitting alarm request', [
+            'from'   => $from->toIso8601String(),
+            'to'     => $to->toIso8601String(),
+            'format' => $format,
+        ]);
+
+        $data = $this->sendAsyncSubmit(
+            new SubmitAlarmRequest($from, $to, $format),
+            'alarm'
+        );
+
+        Log::info('TestoCloudClient: alarm request submitted', ['request_uuid' => $data['request_uuid']]);
+
+        return AsyncSubmitResponse::fromArray($data);
+    }
+
+    /**
+     * Poll the status of a previously submitted alarm request.
+     *
+     * @throws TestoApiException
+     */
+    public function checkAlarmStatus(string $requestUuid): AsyncStatusResponse
+    {
+        return $this->sendAsyncStatusCheck(
+            new CheckAlarmStatusRequest($requestUuid),
+            'alarm',
+            $requestUuid
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Tasks  POST /v3/tasks  •  GET /v3/tasks/{uuid}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initiate an asynchronous quality-management / HACCP task export.
+     *
+     * @throws \InvalidArgumentException  when $from is not before $to
+     * @throws TestoApiException
+     */
+    public function submitTaskRequest(Carbon $from, Carbon $to, string $format = 'JSON'): AsyncSubmitResponse
+    {
+        if ($from->greaterThanOrEqualTo($to)) {
+            throw new \InvalidArgumentException(
+                "The \$from date ({$from->toIso8601String()}) must be before the \$to date ({$to->toIso8601String()})."
+            );
+        }
+
+        Log::info('TestoCloudClient: submitting task request', [
+            'from'   => $from->toIso8601String(),
+            'to'     => $to->toIso8601String(),
+            'format' => $format,
+        ]);
+
+        $data = $this->sendAsyncSubmit(
+            new SubmitTaskRequest($from, $to, $format),
+            'task'
+        );
+
+        Log::info('TestoCloudClient: task request submitted', ['request_uuid' => $data['request_uuid']]);
+
+        return AsyncSubmitResponse::fromArray($data);
+    }
+
+    /**
+     * Poll the status of a previously submitted task request.
+     *
+     * @throws TestoApiException
+     */
+    public function checkTaskStatus(string $requestUuid): AsyncStatusResponse
+    {
+        return $this->sendAsyncStatusCheck(
+            new CheckTaskStatusRequest($requestUuid),
+            'task',
+            $requestUuid
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Equipment  POST /v4/equipments  •  GET /v4/equipments/{uuid}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initiate an asynchronous equipment-configuration export.
+     *
+     * Returns equipment hierarchies, sensor mappings, measurement thresholds,
+     * and physical_value / physical_extension fields for channel alignment.
+     *
+     * @throws TestoApiException
+     */
+    public function submitEquipmentRequest(string $format = 'JSON'): AsyncSubmitResponse
+    {
+        Log::info('TestoCloudClient: submitting equipment request', ['format' => $format]);
+
+        $data = $this->sendAsyncSubmit(
+            new SubmitEquipmentRequest($format),
+            'equipment'
+        );
+
+        Log::info('TestoCloudClient: equipment request submitted', ['request_uuid' => $data['request_uuid']]);
+
+        return AsyncSubmitResponse::fromArray($data);
+    }
+
+    /**
+     * Poll the status of a previously submitted equipment request.
+     *
+     * @throws TestoApiException
+     */
+    public function checkEquipmentStatus(string $requestUuid): AsyncStatusResponse
+    {
+        return $this->sendAsyncStatusCheck(
+            new CheckEquipmentStatusRequest($requestUuid),
+            'equipment',
+            $requestUuid
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Sensors  POST /v3/sensors/status  •  GET /v3/sensors/status/{uuid}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initiate an asynchronous sensor health/battery status export.
+     *
+     * Returns battery level, signal strength, last communication timestamp,
+     * firmware version, and serial numbers for all sensors.
+     *
+     * @throws TestoApiException
+     */
+    public function submitSensorStatusRequest(string $format = 'JSON'): AsyncSubmitResponse
+    {
+        Log::info('TestoCloudClient: submitting sensor status request', ['format' => $format]);
+
+        $data = $this->sendAsyncSubmit(
+            new SubmitSensorStatusRequest($format),
+            'sensor status'
+        );
+
+        Log::info('TestoCloudClient: sensor status request submitted', ['request_uuid' => $data['request_uuid']]);
+
+        return AsyncSubmitResponse::fromArray($data);
+    }
+
+    /**
+     * Poll the status of a previously submitted sensor-status request.
+     *
+     * @throws TestoApiException
+     */
+    public function checkSensorStatus(string $requestUuid): AsyncStatusResponse
+    {
+        return $this->sendAsyncStatusCheck(
+            new CheckSensorStatusRequest($requestUuid),
+            'sensor status',
+            $requestUuid
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Measuring Objects  POST /v1/measuring_objects  •  GET /v1/measuring_objects/{uuid}
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Initiate an asynchronous measuring-object configuration export.
+     *
+     * Returns customer_uuid, customer_site, product_family_id, measurement
+     * configurations, and channel assignments.
+     *
+     * @throws TestoApiException
+     */
+    public function submitMeasuringObjectRequest(string $format = 'JSON'): AsyncSubmitResponse
+    {
+        Log::info('TestoCloudClient: submitting measuring object request', ['format' => $format]);
+
+        $data = $this->sendAsyncSubmit(
+            new SubmitMeasuringObjectRequest($format),
+            'measuring object'
+        );
+
+        Log::info('TestoCloudClient: measuring object request submitted', ['request_uuid' => $data['request_uuid']]);
+
+        return AsyncSubmitResponse::fromArray($data);
+    }
+
+    /**
+     * Poll the status of a previously submitted measuring-object request.
+     *
+     * @throws TestoApiException
+     */
+    public function checkMeasuringObjectStatus(string $requestUuid): AsyncStatusResponse
+    {
+        return $this->sendAsyncStatusCheck(
+            new CheckMeasuringObjectStatusRequest($requestUuid),
+            'measuring object',
+            $requestUuid
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Private helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Send any async-initiation (POST) request and return the validated response body.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws TestoApiException
+     */
+    private function sendAsyncSubmit(SaloonRequest $request, string $module): array
+    {
+        try {
+            $this->applyBearerToken();
+
+            $response = $this->connector->send($request);
+        } catch (RequestException $e) {
+            Log::error("TestoCloudClient: {$module} submit request failed", [
+                'status' => $e->getResponse()->status(),
+                'body'   => substr($e->getResponse()->body(), 0, 500),
+            ]);
+
+            throw new TestoApiException(
+                "Testo API returned HTTP {$e->getResponse()->status()} when submitting {$module} request",
+                $e->getResponse()->status(),
+                $e
+            );
+        } catch (\Throwable $e) {
+            Log::error("TestoCloudClient: unexpected error submitting {$module} request", ['message' => $e->getMessage()]);
+
+            throw new TestoApiException("Testo API {$module} submission failed: {$e->getMessage()}", 0, $e);
+        }
+
+        $data = $response->json();
+
+        if (! is_array($data) || ! isset($data['request_uuid'])) {
+            throw new TestoApiException("Testo API {$module} submission response missing request_uuid");
+        }
+
+        return $data;
+    }
+
+    /**
+     * Send any async status-check (GET /{uuid}) request and return the response DTO.
+     *
+     * @throws TestoApiException
+     */
+    private function sendAsyncStatusCheck(SaloonRequest $request, string $module, string $requestUuid): AsyncStatusResponse
+    {
+        Log::info("TestoCloudClient: checking {$module} status", ['request_uuid' => $requestUuid]);
+
+        try {
+            $this->applyBearerToken();
+
+            $response = $this->connector->send($request);
+        } catch (RequestException $e) {
+            Log::error("TestoCloudClient: {$module} status check failed", [
+                'request_uuid' => $requestUuid,
+                'status'       => $e->getResponse()->status(),
+                'body'         => substr($e->getResponse()->body(), 0, 500),
+            ]);
+
+            throw new TestoApiException(
+                "Testo API returned HTTP {$e->getResponse()->status()} checking {$module} status for {$requestUuid}",
+                $e->getResponse()->status(),
+                $e
+            );
+        } catch (\Throwable $e) {
+            Log::error("TestoCloudClient: unexpected error checking {$module} status", ['message' => $e->getMessage()]);
+
+            throw new TestoApiException("Testo API {$module} status check failed: {$e->getMessage()}", 0, $e);
+        }
+
+        $data = $response->json();
+
+        if (! is_array($data)) {
+            throw new TestoApiException("Testo API {$module} status response was not a JSON object");
+        }
+
+        return AsyncStatusResponse::fromArray($data);
+    }
+
     /**
      * Acquire and cache an access token, then set it as Bearer auth on the connector.
      *
@@ -226,15 +542,15 @@ class TestoCloudClient
             throw new TestoApiException("Testo API authentication failed: {$e->getMessage()}", 0, $e);
         }
 
-        $data = $response->json();
+        $data  = $response->json();
         $token = $data['token'] ?? $data['access_token'] ?? $data['IdToken'] ?? null;
 
         if (! $token) {
             throw new TestoApiException('Testo API authentication response missing token field (expected IdToken, token, or access_token)');
         }
 
-        $buffer   = config('testo-cloud.token_cache_ttl_buffer_seconds', 60);
-        $ttl      = ($data['expires_in'] ?? 86400) - $buffer;
+        $buffer = config('testo-cloud.token_cache_ttl_buffer_seconds', 60);
+        $ttl    = ($data['expires_in'] ?? 86400) - $buffer;
 
         Cache::put($cacheKey, $token, now()->addSeconds(max($ttl, 60)));
 
