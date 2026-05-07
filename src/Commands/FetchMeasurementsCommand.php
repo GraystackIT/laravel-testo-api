@@ -16,7 +16,8 @@ class FetchMeasurementsCommand extends Command
     protected $signature = 'testo:fetch-measurements
                             {--from= : Start date (Y-m-d). Defaults to configured default_from_days ago}
                             {--to=   : End date (Y-m-d). Defaults to today}
-                            {--format=JSON : Export file format (JSON or CSV)}';
+                            {--format=JSON : Export file format (JSON or CSV)}
+                            {--logger-uuid= : Filter measurements to a single logger device UUID}';
 
     protected $description = 'Fetch historical measurement data from the Testo Saveris API';
 
@@ -30,7 +31,8 @@ class FetchMeasurementsCommand extends Command
             ? Carbon::parse((string) $this->option('to'))->endOfDay()
             : Carbon::now()->endOfDay();
 
-        $format = strtoupper((string) ($this->option('format') ?? 'JSON'));
+        $format     = strtoupper((string) ($this->option('format') ?? 'JSON'));
+        $loggerUuid = $this->option('logger-uuid') ? (string) $this->option('logger-uuid') : null;
 
         if ($from->greaterThanOrEqualTo($to)) {
             $this->error('The --from date must be strictly before the --to date.');
@@ -98,13 +100,16 @@ class FetchMeasurementsCommand extends Command
             return self::SUCCESS;
         }
 
-        // 3. Download, parse, and optionally store
+        // 3. Download all data files and concatenate before parsing.
+        //    The Testo API splits results across multiple S3 URLs (one per Athena
+        //    worker). Processing files individually misses cross-file timestamp
+        //    deduplication; concatenating first lets the parser merge them correctly.
         $shouldStore = (bool) config('testo.store_measurements', true);
-        $totalRows   = 0;
-        $storedRows  = 0;
         $fileCount   = count($status->dataUrls);
 
         $this->info("Downloading {$fileCount} data file(s)...");
+
+        $combinedContent = '';
 
         foreach ($status->dataUrls as $index => $url) {
             $fileNum = $index + 1;
@@ -112,25 +117,39 @@ class FetchMeasurementsCommand extends Command
             try {
                 $content = $client->downloadDataFile($url);
             } catch (TestoApiException $e) {
-                $this->warn("  [{$fileNum}/{$fileCount}] Download failed: {$e->getMessage()}");
-                continue;
+                $this->error("  [{$fileNum}/{$fileCount}] Download failed: {$e->getMessage()}");
+
+                return self::FAILURE;
             }
 
-            $rows = $parser->parse($content);
-            $rowCount = count($rows);
-            $totalRows += $rowCount;
+            $combinedContent .= $content;
+            if (! str_ends_with($combinedContent, "\n")) {
+                $combinedContent .= "\n";
+            }
 
-            $this->line("  [{$fileNum}/{$fileCount}] Parsed {$rowCount} measurement(s).");
+            $this->line("  [{$fileNum}/{$fileCount}] Downloaded.");
+        }
 
-            if ($shouldStore && $rowCount > 0) {
-                foreach ($rows as $row) {
-                    TestoMeasurement::create([
-                        'measured_at' => $row['timestamp'],
-                        'temperature' => $row['temperature'] ?? null,
-                        'humidity'    => $row['humidity'] ?? null,
-                    ]);
-                    $storedRows++;
-                }
+        // Parse the combined content — grouping by timestamp deduplicates entries
+        // that appear in more than one file.
+        $rows      = $parser->parse($combinedContent, $loggerUuid);
+        $totalRows = count($rows);
+
+        // Sort chronologically before storing; the API does not guarantee order
+        // across files.
+        usort($rows, static fn (array $a, array $b) => strtotime($a['timestamp']) <=> strtotime($b['timestamp']));
+
+        $this->info("Parsed {$totalRows} measurement(s) across {$fileCount} file(s).");
+
+        $storedRows = 0;
+
+        if ($shouldStore && $totalRows > 0) {
+            foreach ($rows as $row) {
+                TestoMeasurement::firstOrCreate(
+                    ['logger_uuid' => $loggerUuid, 'measured_at' => $row['timestamp']],
+                    ['temperature' => $row['temperature'] ?? null, 'humidity' => $row['humidity'] ?? null]
+                );
+                $storedRows++;
             }
         }
 

@@ -7,6 +7,7 @@ use GraystackIT\TestoCloud\Connectors\TestoDataConnector;
 use GraystackIT\TestoCloud\Data\LoggerDevice;
 use GraystackIT\TestoCloud\Data\MeasurementStatusResponse;
 use GraystackIT\TestoCloud\Data\MeasurementSubmitResponse;
+use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckMeasurementStatusRequest;
 use GraystackIT\TestoCloud\Requests\GetLoggersRequest;
@@ -105,7 +106,7 @@ it('checks request status and returns a MeasurementStatusResponse', function () 
     $response = makeClientWithMock($mockClient)->checkRequestStatus('uuid-123');
 
     expect($response)->toBeInstanceOf(MeasurementStatusResponse::class)
-        ->and($response->status)->toBe('completed')
+        ->and($response->status)->toBe(AsyncRequestStatus::Completed)
         ->and($response->isCompleted())->toBeTrue()
         ->and($response->isProcessing())->toBeFalse()
         ->and($response->isFailed())->toBeFalse()
@@ -124,6 +125,34 @@ it('returns processing status correctly', function () {
     expect($response->isProcessing())->toBeTrue()
         ->and($response->isCompleted())->toBeFalse()
         ->and($response->isFailed())->toBeFalse();
+});
+
+it('normalises capitalized API status values (e.g. "Completed" from real Testo API)', function () {
+    $mockClient = new MockClient([
+        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
+        CheckMeasurementStatusRequest::class => MockResponse::make([
+            'status'    => 'Completed',
+            'data_urls' => ['https://s3.example.com/data.json.gz'],
+        ], 200),
+    ]);
+
+    $response = makeClientWithMock($mockClient)->checkRequestStatus('uuid-789');
+
+    expect($response->isCompleted())->toBeTrue()
+        ->and($response->isProcessing())->toBeFalse()
+        ->and($response->isFailed())->toBeFalse();
+});
+
+it('normalises "In Progress" API status to isProcessing', function () {
+    $mockClient = new MockClient([
+        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
+        CheckMeasurementStatusRequest::class => MockResponse::make(['status' => 'In Progress'], 200),
+    ]);
+
+    $response = makeClientWithMock($mockClient)->checkRequestStatus('uuid-in-progress');
+
+    expect($response->isProcessing())->toBeTrue()
+        ->and($response->isCompleted())->toBeFalse();
 });
 
 it('throws TestoApiException when check status returns 404', function () {

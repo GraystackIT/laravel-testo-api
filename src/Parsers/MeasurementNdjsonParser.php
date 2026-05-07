@@ -15,12 +15,18 @@ class MeasurementNdjsonParser
      *   - timestamp (string, ISO 8601)
      *   - measurement (float)
      *   - physical_property_name (string, e.g. "Temperature", "Humidity")
+     *   - device_uuid (string, optional — present when account has multiple loggers)
+     *
+     * When $deviceUuid is provided, lines whose device_uuid does not match are
+     * silently dropped. This is critical for accounts with multiple loggers: the
+     * Testo /v1/measurements endpoint returns ALL devices' data for the credentials
+     * used, so without filtering, measurements from other devices corrupt the output.
      *
      * Lines with the same timestamp are merged into a single entry.
      *
      * @return array<int, array{timestamp: string, temperature: ?float, humidity: ?float}>
      */
-    public function parse(string $ndjson): array
+    public function parse(string $ndjson, ?string $deviceUuid = null): array
     {
         $lines = array_filter(
             explode("\n", $ndjson),
@@ -35,6 +41,7 @@ class MeasurementNdjsonParser
 
         /** @var array<string, array{timestamp: string, temperature: ?float, humidity: ?float}> $grouped */
         $grouped = [];
+        $skippedWrongDevice = 0;
 
         foreach ($lines as $line) {
             $decoded = json_decode(trim($line), true);
@@ -46,6 +53,16 @@ class MeasurementNdjsonParser
                 Log::debug('MeasurementNdjsonParser: skipping invalid line', [
                     'line' => substr($line, 0, 100),
                 ]);
+
+                continue;
+            }
+
+            if (
+                $deviceUuid !== null
+                && isset($decoded['device_uuid'])
+                && $decoded['device_uuid'] !== $deviceUuid
+            ) {
+                $skippedWrongDevice++;
 
                 continue;
             }
@@ -72,8 +89,10 @@ class MeasurementNdjsonParser
         $result = array_values($grouped);
 
         Log::info('MeasurementNdjsonParser: parsed measurements', [
-            'total_lines'       => count($lines),
-            'unique_timestamps' => count($result),
+            'total_lines'         => count($lines),
+            'unique_timestamps'   => count($result),
+            'skipped_wrong_device' => $skippedWrongDevice,
+            'device_uuid_filter'  => $deviceUuid,
         ]);
 
         return $result;
