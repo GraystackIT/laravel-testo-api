@@ -8,7 +8,6 @@ use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
 use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckSensorStatusRequest;
-use GraystackIT\TestoCloud\Requests\GetTokenRequest;
 use GraystackIT\TestoCloud\Requests\SubmitSensorStatusRequest;
 use GraystackIT\TestoCloud\TestoCloudClient;
 use GraystackIT\TestoCloud\TestoDataFileDownloader;
@@ -21,7 +20,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeSensorClient(MockClient $mockClient): TestoCloudClient
 {
-    $connector = new TestoDataConnector('test-id', 'test-secret', 'eu', 'p');
+    $connector = new TestoDataConnector('test-api-key', 'eu');
     $connector->withMockClient($mockClient);
 
     return new TestoCloudClient($connector, new TestoDataFileDownloader());
@@ -31,9 +30,8 @@ function makeSensorClient(MockClient $mockClient): TestoCloudClient
 // submitSensorStatusRequest
 // ──────────────────────────────────────────────────────────────────────────────
 
-it('submits a sensor status request and returns AsyncSubmitResponse', function () {
+it('submits a device status request and returns AsyncSubmitResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class          => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitSensorStatusRequest::class => MockResponse::make(['request_uuid' => 'sensor-uuid-1', 'status' => 'submitted'], 200),
     ]);
 
@@ -46,9 +44,8 @@ it('submits a sensor status request and returns AsyncSubmitResponse', function (
     $mockClient->assertSent(SubmitSensorStatusRequest::class);
 });
 
-it('throws TestoApiException when sensor submit returns 401', function () {
+it('throws TestoApiException when device status submit returns 401', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class           => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitSensorStatusRequest::class => MockResponse::make(['error' => 'Unauthorized'], 401),
     ]);
 
@@ -56,9 +53,8 @@ it('throws TestoApiException when sensor submit returns 401', function () {
         ->toThrow(TestoApiException::class);
 });
 
-it('throws TestoApiException when sensor submit response is missing request_uuid', function () {
+it('throws TestoApiException when device status submit response is missing request_uuid', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class           => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitSensorStatusRequest::class => MockResponse::make(['status' => 'submitted'], 200),
     ]);
 
@@ -70,9 +66,8 @@ it('throws TestoApiException when sensor submit response is missing request_uuid
 // checkSensorStatus
 // ──────────────────────────────────────────────────────────────────────────────
 
-it('checks sensor status and returns AsyncStatusResponse', function () {
+it('checks device status and returns AsyncStatusResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class          => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckSensorStatusRequest::class => MockResponse::make([
             'status'    => 'completed',
             'data_urls' => [
@@ -92,9 +87,8 @@ it('checks sensor status and returns AsyncStatusResponse', function () {
         ->and($response->error)->toBeNull();
 });
 
-it('returns processing status for sensor status check', function () {
+it('returns processing status for device status check', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class          => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckSensorStatusRequest::class => MockResponse::make(['status' => 'In Progress'], 200),
     ]);
 
@@ -105,9 +99,8 @@ it('returns processing status for sensor status check', function () {
         ->and($response->isFailed())->toBeFalse();
 });
 
-it('throws TestoApiException when sensor status check returns 500', function () {
+it('throws TestoApiException when device status check returns 500', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class          => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckSensorStatusRequest::class => MockResponse::make(['error' => 'Server Error'], 500),
     ]);
 

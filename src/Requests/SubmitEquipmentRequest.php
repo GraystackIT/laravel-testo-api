@@ -10,10 +10,10 @@ use Saloon\Http\Request;
 use Saloon\Traits\Body\HasJsonBody;
 
 /**
- * POST /v4/equipments — initiate an asynchronous equipment-configuration export.
+ * POST /v3/devices/properties — initiate an asynchronous device-properties export.
  *
- * Returns equipment hierarchies, sensor mappings, measurement thresholds,
- * and physical_value / physical_extension fields for channel alignment.
+ * Returns device metadata including serial numbers, model codes, firmware versions,
+ * calibration status, and equipment relationships.
  */
 class SubmitEquipmentRequest extends Request implements HasBody
 {
@@ -27,7 +27,7 @@ class SubmitEquipmentRequest extends Request implements HasBody
 
     public function resolveEndpoint(): string
     {
-        return '/v4/equipments';
+        return '/v3/devices/properties';
     }
 
     /**

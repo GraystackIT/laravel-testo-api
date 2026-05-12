@@ -9,7 +9,6 @@ use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
 use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckTaskStatusRequest;
-use GraystackIT\TestoCloud\Requests\GetTokenRequest;
 use GraystackIT\TestoCloud\Requests\SubmitTaskRequest;
 use GraystackIT\TestoCloud\TestoCloudClient;
 use GraystackIT\TestoCloud\TestoDataFileDownloader;
@@ -22,7 +21,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeTaskClient(MockClient $mockClient): TestoCloudClient
 {
-    $connector = new TestoDataConnector('test-id', 'test-secret', 'eu', 'p');
+    $connector = new TestoDataConnector('test-api-key', 'eu');
     $connector->withMockClient($mockClient);
 
     return new TestoCloudClient($connector, new TestoDataFileDownloader());
@@ -34,7 +33,6 @@ function makeTaskClient(MockClient $mockClient): TestoCloudClient
 
 it('submits a task request and returns AsyncSubmitResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class  => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitTaskRequest::class => MockResponse::make(['request_uuid' => 'task-uuid-1', 'status' => 'submitted'], 200),
     ]);
 
@@ -61,7 +59,6 @@ it('throws InvalidArgumentException when task from >= to', function () {
 
 it('throws TestoApiException when task submit returns 403', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitTaskRequest::class => MockResponse::make(['error' => 'Forbidden'], 403),
     ]);
 
@@ -73,7 +70,6 @@ it('throws TestoApiException when task submit returns 403', function () {
 
 it('throws TestoApiException when task submit response is missing request_uuid', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitTaskRequest::class => MockResponse::make(['status' => 'submitted'], 200),
     ]);
 
@@ -89,7 +85,6 @@ it('throws TestoApiException when task submit response is missing request_uuid',
 
 it('checks task status and returns AsyncStatusResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class       => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckTaskStatusRequest::class => MockResponse::make([
             'status'    => 'completed',
             'data_urls' => ['https://s3.example.com/tasks.json.gz'],
@@ -106,7 +101,6 @@ it('checks task status and returns AsyncStatusResponse', function () {
 
 it('returns failed status when task request fails', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class        => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckTaskStatusRequest::class => MockResponse::make([
             'status' => 'failed',
             'error'  => 'Internal processing error',
@@ -121,7 +115,6 @@ it('returns failed status when task request fails', function () {
 
 it('throws TestoApiException when task status check returns 500', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class        => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckTaskStatusRequest::class => MockResponse::make(['error' => 'Server Error'], 500),
     ]);
 

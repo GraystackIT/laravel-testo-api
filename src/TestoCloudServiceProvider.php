@@ -16,26 +16,17 @@ class TestoCloudServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/testo.php', 'testo');
 
         $this->app->singleton(TestoDataConnector::class, function () {
-            $clientId     = (string) config('testo-cloud.client_id', '');
-            $clientSecret = (string) config('testo-cloud.client_secret', '');
+            $apiKey = (string) config('testo-cloud.api_key', '');
 
-            if (empty($clientId)) {
+            if (empty($apiKey)) {
                 throw new \RuntimeException(
-                    'Testo API client ID is not configured. Set TESTO_CLIENT_ID in your .env file.'
-                );
-            }
-
-            if (empty($clientSecret)) {
-                throw new \RuntimeException(
-                    'Testo API client secret is not configured. Set TESTO_CLIENT_SECRET in your .env file.'
+                    'Testo API key is not configured. Set TESTO_API_KEY in your .env file.'
                 );
             }
 
             return new TestoDataConnector(
-                clientId: $clientId,
-                clientSecret: $clientSecret,
+                apiKey: $apiKey,
                 region: (string) config('testo-cloud.region', 'eu'),
-                environment: (string) config('testo-cloud.environment', 'p'),
             );
         });
 

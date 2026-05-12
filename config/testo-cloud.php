@@ -3,13 +3,12 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Testo API Credentials
+    | Testo API Key
     |--------------------------------------------------------------------------
-    | Your Testo Saveris Data API client ID (username) and client secret (password).
-    | Obtain these from your Testo account.
+    | Your Smart Connect API key. Generate this from the Smart Connect home page
+    | (valid for up to one year). Pass it via the x-custom-api-key header.
     */
-    'client_id'     => env('TESTO_CLIENT_ID'),
-    'client_secret' => env('TESTO_CLIENT_SECRET'),
+    'api_key' => env('TESTO_API_KEY'),
 
     /*
     |--------------------------------------------------------------------------
@@ -21,28 +20,11 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Environment
-    |--------------------------------------------------------------------------
-    | 'p' for production (live data), 'i' for integration/testing.
-    */
-    'environment' => env('TESTO_ENVIRONMENT', 'p'),
-
-    /*
-    |--------------------------------------------------------------------------
     | HTTP Timeout
     |--------------------------------------------------------------------------
     | Timeout in seconds for standard API requests.
     | Downloads use a separate, longer timeout.
     */
-    'http_timeout'          => env('TESTO_HTTP_TIMEOUT', 30),
-    'download_timeout'      => env('TESTO_DOWNLOAD_TIMEOUT', 120),
-
-    /*
-    |--------------------------------------------------------------------------
-    | Token Cache Buffer
-    |--------------------------------------------------------------------------
-    | Seconds to subtract from the token's expires_in to avoid using an
-    | almost-expired token. Defaults to 60 seconds.
-    */
-    'token_cache_ttl_buffer_seconds' => env('TESTO_TOKEN_CACHE_TTL_BUFFER', 60),
+    'http_timeout'     => env('TESTO_HTTP_TIMEOUT', 30),
+    'download_timeout' => env('TESTO_DOWNLOAD_TIMEOUT', 120),
 ];

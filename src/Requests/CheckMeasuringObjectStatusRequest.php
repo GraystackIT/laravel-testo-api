@@ -8,7 +8,7 @@ use Saloon\Enums\Method;
 use Saloon\Http\Request;
 
 /**
- * GET /v1/measuring_objects/{requestUuid} — poll the status of a submitted measuring-object request.
+ * GET /v1/measuring-objects/{requestUuid} — poll the status of a submitted measuring-object request.
  */
 class CheckMeasuringObjectStatusRequest extends Request
 {
@@ -20,6 +20,6 @@ class CheckMeasuringObjectStatusRequest extends Request
 
     public function resolveEndpoint(): string
     {
-        return "/v1/measuring_objects/{$this->requestUuid}";
+        return "/v1/measuring-objects/{$this->requestUuid}";
     }
 }

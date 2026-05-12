@@ -1,8 +1,8 @@
 # graystackit/laravel-testo-cloud
 
-A Laravel package for the **Testo Saveris Data API**, built on [Saloon 4](https://docs.saloon.dev/).
+A Laravel package for the **Testo Smart Connect API**, built on [Saloon 4](https://docs.saloon.dev/).
 
-Retrieve historical temperature and humidity measurements from Testo IoT data loggers, fetch alarm events, HACCP task records, equipment configuration, sensor battery status, and measuring object data — all with a clean, Laravel-native interface.
+Retrieve historical measurements, alarm events, HACCP task records, device properties, device health status, measuring object configurations, and location hierarchies from Testo Smart Connect — all with a clean, Laravel-native interface.
 
 ## Requirements
 
@@ -15,7 +15,7 @@ Retrieve historical temperature and humidity measurements from Testo IoT data lo
 composer require graystackit/laravel-testo-api
 ```
 
-Laravel auto-discovers the service provider. Then publish the config file:
+Laravel auto-discovers the service provider. Then publish the config files:
 
 ```bash
 php artisan vendor:publish --tag=testo-cloud-config
@@ -28,18 +28,15 @@ php artisan vendor:publish --tag=testo-cloud-config
 Add the following to your `.env` file:
 
 ```env
-TESTO_CLIENT_ID=your-client-id
-TESTO_CLIENT_SECRET=your-client-secret
+TESTO_API_KEY=your-api-key
 
 # Optional — defaults shown
 TESTO_REGION=eu           # eu | am | ap
-TESTO_ENVIRONMENT=p       # p (production) | i (integration/testing)
 TESTO_HTTP_TIMEOUT=30
 TESTO_DOWNLOAD_TIMEOUT=120
-TESTO_TOKEN_CACHE_TTL_BUFFER=60
 ```
 
-Obtain your credentials from your [Testo Saveris account](https://www.testo.com/).
+Generate your API key from the Smart Connect home page. Keys are valid for up to one year.
 
 ### Storage & command options — `testo.php`
 
@@ -61,10 +58,10 @@ TESTO_DEFAULT_FROM_DAYS=7      # days to look back when --from is omitted
 
 ## Async Workflow
 
-All data-export modules except `getAllLoggers()` use the same two-step async pattern:
+All data-export endpoints use the same two-step async pattern:
 
 1. **Submit** a POST request → receive a `request_uuid`
-2. **Poll** a GET request with that UUID until status is `completed`
+2. **Poll** a GET request with that UUID until status is `Completed`
 3. **Download** each URL in `dataUrls` using `downloadDataFile()`
 
 ```
@@ -85,22 +82,7 @@ $client = app(TestoCloudClient::class);
 
 ---
 
-### Loggers
-
-#### List all logger devices
-
-```php
-$loggers = $client->getAllLoggers();
-
-foreach ($loggers as $logger) {
-    echo $logger->uuid;      // device UUID
-    echo $logger->serialNo;  // hardware serial number
-}
-```
-
----
-
-### Measurements  `POST /v1/measurements`  •  `GET /v1/measurements/{uuid}`
+### Measurements  `POST /v2/measurements`  •  `GET /v2/measurements/{uuid}`
 
 ```php
 use Carbon\Carbon;
@@ -144,7 +126,6 @@ Retrieve historical alarm events for the configured account.
 
 ```php
 use Carbon\Carbon;
-use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 
 // 1. Submit
 $submit = $client->submitAlarmRequest(
@@ -183,10 +164,10 @@ if ($status->isFailed()) {
 
 ---
 
-### Equipment  `POST /v4/equipments`  •  `GET /v4/equipments/{uuid}`
+### Device Properties  `POST /v3/devices/properties`  •  `GET /v3/devices/properties/{uuid}`
 
-Retrieve equipment hierarchies, sensor mappings, measurement thresholds, and
-`physical_value` / `physical_extension` fields for channel alignment.
+Retrieve device metadata including serial numbers, model codes, firmware versions,
+calibration status, and equipment relationships.
 
 > No date range required — returns current configuration.
 
@@ -204,10 +185,10 @@ if ($status->isCompleted()) {
 
 ---
 
-### Sensors  `POST /v3/sensors/status`  •  `GET /v3/sensors/status/{uuid}`
+### Device Status  `POST /v3/devices/status`  •  `GET /v3/devices/status/{uuid}`
 
-Retrieve sensor battery levels, signal strength, last communication timestamps,
-firmware versions, and serial numbers.
+Retrieve battery level, signal strength, last communication timestamp,
+firmware version, and serial numbers for all devices.
 
 > No date range required — returns current status snapshot.
 
@@ -223,7 +204,7 @@ if ($status->isCompleted()) {
 
 ---
 
-### Measuring Objects  `POST /v1/measuring_objects`  •  `GET /v1/measuring_objects/{uuid}`
+### Measuring Objects  `POST /v1/measuring-objects`  •  `GET /v1/measuring-objects/{uuid}`
 
 Retrieve measuring-object configurations including `customer_uuid`,
 `customer_site`, `product_family_id`, measurement settings, and channel assignments.
@@ -234,6 +215,31 @@ Retrieve measuring-object configurations including `customer_uuid`,
 $submit = $client->submitMeasuringObjectRequest();
 
 $status = $client->checkMeasuringObjectStatus($submit->requestUuid);
+```
+
+---
+
+### Locations  `POST /v1/locations`  •  `GET /v1/locations/{uuid}`
+
+Retrieve the location hierarchy (sites, zones, rooms) associated with the account.
+
+> No date range required — returns current location structure.
+
+```php
+$submit = $client->submitLocationRequest(format: 'JSON');  // format optional
+
+$status = $client->checkLocationStatus($submit->requestUuid);
+
+if ($status->isCompleted()) {
+    foreach ($status->dataUrls as $url) {
+        $content = $client->downloadDataFile($url);
+    }
+
+    // Optional metadata file
+    if ($status->metadataUrl) {
+        $meta = $client->downloadDataFile($status->metadataUrl);
+    }
+}
 ```
 
 ---
@@ -277,9 +283,10 @@ The enum normalises all API status strings, including `"In Progress"` → `Proce
 
 ### Legacy measurement objects
 
+Used by `checkRequestStatus()` (measurements only):
+
 | Class | Properties |
 |---|---|
-| `LoggerDevice` | `uuid`, `serialNo` |
 | `MeasurementSubmitResponse` | `requestUuid`, `status` (string) |
 | `MeasurementStatusResponse` | `status`, `dataUrls[]`, `metadataUrl`, `error`, helpers |
 
@@ -295,14 +302,14 @@ use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 try {
     $submit = $client->submitAlarmRequest(Carbon::parse('2025-01-01'), Carbon::parse('2025-02-01'));
 } catch (TestoApiException $e) {
-    // HTTP errors, authentication failures, unexpected API responses
+    // HTTP errors, unexpected API responses
     logger()->error($e->getMessage(), ['code' => $e->getCode()]);
 }
 ```
 
 `submit*Request()` methods that accept a date range additionally throw `\InvalidArgumentException` when `$from >= $to`.
 
-If `TESTO_CLIENT_ID` or `TESTO_CLIENT_SECRET` is not configured, a `\RuntimeException` is thrown on container resolution.
+If `TESTO_API_KEY` is not configured, a `\RuntimeException` is thrown on container resolution.
 
 ---
 
@@ -310,16 +317,15 @@ If `TESTO_CLIENT_ID` or `TESTO_CLIENT_SECRET` is not configured, a `\RuntimeExce
 
 | Module | Submit | Check Status |
 |---|---|---|
-| Measurements | `POST /v1/measurements` | `GET /v1/measurements/{uuid}` |
+| Measurements | `POST /v2/measurements` | `GET /v2/measurements/{uuid}` |
 | Alarms | `POST /v3/alarms` | `GET /v3/alarms/{uuid}` |
 | Tasks | `POST /v3/tasks` | `GET /v3/tasks/{uuid}` |
-| Equipment | `POST /v4/equipments` | `GET /v4/equipments/{uuid}` |
-| Sensors | `POST /v3/sensors/status` | `GET /v3/sensors/status/{uuid}` |
-| Measuring Objects | `POST /v1/measuring_objects` | `GET /v1/measuring_objects/{uuid}` |
+| Device Properties | `POST /v3/devices/properties` | `GET /v3/devices/properties/{uuid}` |
+| Device Status | `POST /v3/devices/status` | `GET /v3/devices/status/{uuid}` |
+| Measuring Objects | `POST /v1/measuring-objects` | `GET /v1/measuring-objects/{uuid}` |
+| Locations | `POST /v1/locations` | `GET /v1/locations/{uuid}` |
 
-Base URL: `https://data-api.{region}.{environment}.savr.saveris.net`
-
----
+Base URL: `https://data-api.{region}.smartconnect.testo.com`
 
 ---
 
@@ -356,7 +362,6 @@ php artisan vendor:publish --tag=testo-migrations
 ```php
 use GraystackIT\TestoCloud\Models\TestoMeasurement;
 
-// Query stored measurements
 $recent = TestoMeasurement::where('measured_at', '>=', now()->subDay())->get();
 
 foreach ($recent as $row) {
@@ -387,6 +392,7 @@ Fetches historical measurements from the Testo API, parses the NDJSON response, 
 | `--from=` | `default_from_days` ago | Start date (`Y-m-d`) |
 | `--to=` | today | End date (`Y-m-d`) |
 | `--format=` | `JSON` | Export format (`JSON` or `CSV`) |
+| `--logger-uuid=` | _(all loggers)_ | Filter results to a single device UUID |
 
 ### Examples
 
@@ -397,9 +403,8 @@ php artisan testo:fetch-measurements
 # Specific date range
 php artisan testo:fetch-measurements --from=2025-01-01 --to=2025-01-31
 
-# Fetch only — do not store (override config at runtime via .env or config)
-# Set TESTO_STORE_MEASUREMENTS=false before running
-php artisan testo:fetch-measurements --from=2025-03-01 --to=2025-03-31
+# Single device only
+php artisan testo:fetch-measurements --from=2025-03-01 --to=2025-03-31 --logger-uuid=abc-123
 ```
 
 ### Console output
@@ -408,12 +413,13 @@ php artisan testo:fetch-measurements --from=2025-03-01 --to=2025-03-31
 Fetching measurements from 2025-01-01 to 2025-01-31...
 Request submitted. UUID: 9f4a1b2c-...
 Polling for completion (max 60 attempts, 5s interval)...
-  [1/60] Status: submitted — waiting 5s...
-  [2/60] Status: processing — waiting 5s...
+  [1/60] Status: Submitted — waiting 5s...
+  [2/60] Status: Processing — waiting 5s...
 Status: completed.
 Downloading 2 data file(s)...
-  [1/2] Parsed 1440 measurement(s).
-  [2/2] Parsed 1440 measurement(s).
+  [1/2] Downloaded.
+  [2/2] Downloaded.
+Parsed 2880 measurement(s) across 2 file(s).
 
 Total measurements parsed: 2880
 Stored in database: 2880

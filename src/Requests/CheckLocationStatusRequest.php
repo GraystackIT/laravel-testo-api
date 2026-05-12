@@ -8,9 +8,9 @@ use Saloon\Enums\Method;
 use Saloon\Http\Request;
 
 /**
- * GET /v3/devices/status/{requestUuid} — poll the status of a submitted device-status request.
+ * GET /v1/locations/{requestUuid} — poll the status of a submitted location request.
  */
-class CheckSensorStatusRequest extends Request
+class CheckLocationStatusRequest extends Request
 {
     protected Method $method = Method::GET;
 
@@ -20,6 +20,6 @@ class CheckSensorStatusRequest extends Request
 
     public function resolveEndpoint(): string
     {
-        return "/v3/devices/status/{$this->requestUuid}";
+        return "/v1/locations/{$this->requestUuid}";
     }
 }

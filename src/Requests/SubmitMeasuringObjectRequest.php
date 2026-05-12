@@ -10,7 +10,7 @@ use Saloon\Http\Request;
 use Saloon\Traits\Body\HasJsonBody;
 
 /**
- * POST /v1/measuring_objects — initiate an asynchronous measuring-object configuration export.
+ * POST /v1/measuring-objects — initiate an asynchronous measuring-object configuration export.
  *
  * Returns customer_uuid, customer_site, product_family_id, measurement
  * configurations, and channel assignments.
@@ -27,7 +27,7 @@ class SubmitMeasuringObjectRequest extends Request implements HasBody
 
     public function resolveEndpoint(): string
     {
-        return '/v1/measuring_objects';
+        return '/v1/measuring-objects';
     }
 
     /**

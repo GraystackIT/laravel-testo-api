@@ -15,6 +15,6 @@ class CheckMeasurementStatusRequest extends Request
 
     public function resolveEndpoint(): string
     {
-        return "/v1/measurements/{$this->requestUuid}";
+        return "/v2/measurements/{$this->requestUuid}";
     }
 }

@@ -4,38 +4,38 @@ declare(strict_types=1);
 
 namespace GraystackIT\TestoCloud\Requests;
 
-use Carbon\Carbon;
 use Saloon\Contracts\Body\HasBody;
 use Saloon\Enums\Method;
 use Saloon\Http\Request;
 use Saloon\Traits\Body\HasJsonBody;
 
-class SubmitMeasurementRequest extends Request implements HasBody
+/**
+ * POST /v1/locations — initiate an asynchronous location hierarchy export.
+ *
+ * Returns the location structure (sites, zones, rooms) associated with the account.
+ */
+class SubmitLocationRequest extends Request implements HasBody
 {
     use HasJsonBody;
 
     protected Method $method = Method::POST;
 
     public function __construct(
-        private readonly Carbon $from,
-        private readonly Carbon $to,
         private readonly string $format = 'JSON',
     ) {}
 
     public function resolveEndpoint(): string
     {
-        return '/v2/measurements';
+        return '/v1/locations';
     }
 
     /**
-     * @return array{date_time_from: string, date_time_until: string, options: array{result_file_format: string}}
+     * @return array{options: array{result_file_format: string}}
      */
     protected function defaultBody(): array
     {
         return [
-            'date_time_from'  => $this->from->toIso8601String(),
-            'date_time_until' => $this->to->toIso8601String(),
-            'options'         => [
+            'options' => [
                 'result_file_format' => $this->format,
             ],
         ];

@@ -10,10 +10,10 @@ use Saloon\Http\Request;
 use Saloon\Traits\Body\HasJsonBody;
 
 /**
- * POST /v3/sensors/status — initiate an asynchronous sensor health/battery status export.
+ * POST /v3/devices/status — initiate an asynchronous device health/connectivity status export.
  *
  * Returns battery level, signal strength, last communication timestamp,
- * firmware version, and serial numbers for all sensors.
+ * firmware version, and serial numbers for all devices.
  */
 class SubmitSensorStatusRequest extends Request implements HasBody
 {
@@ -27,7 +27,7 @@ class SubmitSensorStatusRequest extends Request implements HasBody
 
     public function resolveEndpoint(): string
     {
-        return '/v3/sensors/status';
+        return '/v3/devices/status';
     }
 
     /**

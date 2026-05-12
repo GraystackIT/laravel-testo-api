@@ -9,7 +9,6 @@ use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
 use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckAlarmStatusRequest;
-use GraystackIT\TestoCloud\Requests\GetTokenRequest;
 use GraystackIT\TestoCloud\Requests\SubmitAlarmRequest;
 use GraystackIT\TestoCloud\TestoCloudClient;
 use GraystackIT\TestoCloud\TestoDataFileDownloader;
@@ -22,7 +21,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeAlarmClient(MockClient $mockClient): TestoCloudClient
 {
-    $connector = new TestoDataConnector('test-id', 'test-secret', 'eu', 'p');
+    $connector = new TestoDataConnector('test-api-key', 'eu');
     $connector->withMockClient($mockClient);
 
     return new TestoCloudClient($connector, new TestoDataFileDownloader());
@@ -34,7 +33,6 @@ function makeAlarmClient(MockClient $mockClient): TestoCloudClient
 
 it('submits an alarm request and returns AsyncSubmitResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitAlarmRequest::class => MockResponse::make(['request_uuid' => 'alarm-uuid-1', 'status' => 'submitted'], 200),
     ]);
 
@@ -61,7 +59,6 @@ it('throws InvalidArgumentException when alarm from >= to', function () {
 
 it('throws TestoApiException when alarm submit returns 401', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class    => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitAlarmRequest::class => MockResponse::make(['error' => 'Unauthorized'], 401),
     ]);
 
@@ -73,7 +70,6 @@ it('throws TestoApiException when alarm submit returns 401', function () {
 
 it('throws TestoApiException when alarm submit response is missing request_uuid', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class    => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitAlarmRequest::class => MockResponse::make(['status' => 'submitted'], 200),
     ]);
 
@@ -89,7 +85,6 @@ it('throws TestoApiException when alarm submit response is missing request_uuid'
 
 it('checks alarm status and returns AsyncStatusResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class       => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckAlarmStatusRequest::class => MockResponse::make([
             'status'       => 'Completed',
             'data_urls'    => ['https://s3.example.com/alarms.json.gz'],
@@ -110,7 +105,6 @@ it('checks alarm status and returns AsyncStatusResponse', function () {
 
 it('normalises "In Progress" status to processing enum case', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class         => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckAlarmStatusRequest::class => MockResponse::make(['status' => 'In Progress'], 200),
     ]);
 
@@ -122,7 +116,6 @@ it('normalises "In Progress" status to processing enum case', function () {
 
 it('throws TestoApiException when alarm status check returns 404', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class         => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckAlarmStatusRequest::class => MockResponse::make(['error' => 'Not found'], 404),
     ]);
 

@@ -14,37 +14,35 @@ class TestoDataConnector extends Connector
     use AlwaysThrowOnErrors;
 
     /**
-     * Base URL pattern: https://data-api.{region}.{environment}.savr.saveris.net
+     * Base URL pattern: https://data-api.{region}.smartconnect.testo.com
      */
     public function __construct(
-        private readonly string $clientId,
-        private readonly string $clientSecret,
+        private readonly string $apiKey,
         private readonly string $region = 'eu',
-        private readonly string $environment = 'p',
     ) {}
 
     public function resolveBaseUrl(): string
     {
-        return "https://data-api.{$this->region}.{$this->environment}.savr.saveris.net";
+        return "https://data-api.{$this->region}.smartconnect.testo.com";
     }
 
-    public function getClientId(): string
+    /**
+     * @return array<string, string>
+     */
+    protected function defaultHeaders(): array
     {
-        return $this->clientId;
+        return [
+            'x-custom-api-key' => $this->apiKey,
+        ];
     }
 
-    public function getClientSecret(): string
+    public function getApiKey(): string
     {
-        return $this->clientSecret;
+        return $this->apiKey;
     }
 
     public function getRegion(): string
     {
         return $this->region;
-    }
-
-    public function getEnvironment(): string
-    {
-        return $this->environment;
     }
 }

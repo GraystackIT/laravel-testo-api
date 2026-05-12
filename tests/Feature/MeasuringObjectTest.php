@@ -8,7 +8,6 @@ use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
 use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckMeasuringObjectStatusRequest;
-use GraystackIT\TestoCloud\Requests\GetTokenRequest;
 use GraystackIT\TestoCloud\Requests\SubmitMeasuringObjectRequest;
 use GraystackIT\TestoCloud\TestoCloudClient;
 use GraystackIT\TestoCloud\TestoDataFileDownloader;
@@ -21,7 +20,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeMeasuringObjectClient(MockClient $mockClient): TestoCloudClient
 {
-    $connector = new TestoDataConnector('test-id', 'test-secret', 'eu', 'p');
+    $connector = new TestoDataConnector('test-api-key', 'eu');
     $connector->withMockClient($mockClient);
 
     return new TestoCloudClient($connector, new TestoDataFileDownloader());
@@ -33,7 +32,6 @@ function makeMeasuringObjectClient(MockClient $mockClient): TestoCloudClient
 
 it('submits a measuring object request and returns AsyncSubmitResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitMeasuringObjectRequest::class => MockResponse::make(['request_uuid' => 'mo-uuid-1', 'status' => 'submitted'], 200),
     ]);
 
@@ -48,7 +46,6 @@ it('submits a measuring object request and returns AsyncSubmitResponse', functio
 
 it('submits a measuring object request with custom format', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitMeasuringObjectRequest::class => MockResponse::make(['request_uuid' => 'mo-uuid-csv', 'status' => 'submitted'], 200),
     ]);
 
@@ -59,7 +56,6 @@ it('submits a measuring object request with custom format', function () {
 
 it('throws TestoApiException when measuring object submit returns 401', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitMeasuringObjectRequest::class => MockResponse::make(['error' => 'Unauthorized'], 401),
     ]);
 
@@ -69,7 +65,6 @@ it('throws TestoApiException when measuring object submit returns 401', function
 
 it('throws TestoApiException when measuring object submit response is missing request_uuid', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class              => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         SubmitMeasuringObjectRequest::class => MockResponse::make(['status' => 'submitted'], 200),
     ]);
 
@@ -83,7 +78,6 @@ it('throws TestoApiException when measuring object submit response is missing re
 
 it('checks measuring object status and returns AsyncStatusResponse', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class                   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckMeasuringObjectStatusRequest::class => MockResponse::make([
             'status'       => 'Completed',
             'data_urls'    => ['https://s3.example.com/mo.json.gz'],
@@ -102,7 +96,6 @@ it('checks measuring object status and returns AsyncStatusResponse', function ()
 
 it('returns processing status for measuring object status check', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class                   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckMeasuringObjectStatusRequest::class => MockResponse::make(['status' => 'Submitted'], 200),
     ]);
 
@@ -113,7 +106,6 @@ it('returns processing status for measuring object status check', function () {
 
 it('throws TestoApiException when measuring object status check returns 404', function () {
     $mockClient = new MockClient([
-        GetTokenRequest::class                   => MockResponse::make(['IdToken' => 'tok', 'expires_in' => 86400], 200),
         CheckMeasuringObjectStatusRequest::class => MockResponse::make(['error' => 'Not found'], 404),
     ]);
 

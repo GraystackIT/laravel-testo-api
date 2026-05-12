@@ -8,7 +8,7 @@ use Saloon\Enums\Method;
 use Saloon\Http\Request;
 
 /**
- * GET /v4/equipments/{requestUuid} — poll the status of a submitted equipment request.
+ * GET /v3/devices/properties/{requestUuid} — poll the status of a submitted device-properties request.
  */
 class CheckEquipmentStatusRequest extends Request
 {
@@ -20,6 +20,6 @@ class CheckEquipmentStatusRequest extends Request
 
     public function resolveEndpoint(): string
     {
-        return "/v4/equipments/{$this->requestUuid}";
+        return "/v3/devices/properties/{$this->requestUuid}";
     }
 }
