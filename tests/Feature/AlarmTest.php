@@ -21,7 +21,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeAlarmClient(MockClient $mockClient): TestoCloudClient
 {
-    $connector = new TestoDataConnector('test-api-key', 'eu');
+    $connector = new TestoDataConnector(config('testo.api_key'), config('testo.region'));
     $connector->withMockClient($mockClient);
 
     return new TestoCloudClient($connector, new TestoDataFileDownloader());

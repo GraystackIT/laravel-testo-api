@@ -21,7 +21,7 @@ use Saloon\Http\Faking\MockResponse;
 
 function makeConnector(): TestoDataConnector
 {
-    return new TestoDataConnector('test-api-key', 'eu');
+    return new TestoDataConnector(config('testo.api_key'), config('testo.region'));
 }
 
 function makeClientWithMock(MockClient $mockClient): TestoCloudClient
