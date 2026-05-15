@@ -12,11 +12,10 @@ class TestoCloudServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/testo-cloud.php', 'testo-cloud');
         $this->mergeConfigFrom(__DIR__.'/../config/testo.php', 'testo');
 
         $this->app->singleton(TestoDataConnector::class, function () {
-            $apiKey = (string) config('testo-cloud.api_key', '');
+            $apiKey = (string) config('testo.api_key', '');
 
             if (empty($apiKey)) {
                 throw new \RuntimeException(
@@ -26,12 +25,12 @@ class TestoCloudServiceProvider extends ServiceProvider
 
             return new TestoDataConnector(
                 apiKey: $apiKey,
-                region: (string) config('testo-cloud.region', 'eu'),
+                region: (string) config('testo.region', 'eu'),
             );
         });
 
         $this->app->singleton(TestoDataFileDownloader::class, fn () => new TestoDataFileDownloader(
-            timeoutSeconds: (int) config('testo-cloud.download_timeout', 120),
+            timeoutSeconds: (int) config('testo.download_timeout', 120),
         ));
 
         $this->app->singleton(TestoCloudClient::class, fn ($app) => new TestoCloudClient(
@@ -43,10 +42,6 @@ class TestoCloudServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/testo-cloud.php' => config_path('testo-cloud.php'),
-            ], 'testo-cloud-config');
-
             $this->publishes([
                 __DIR__.'/../config/testo.php' => config_path('testo.php'),
             ], 'testo-config');

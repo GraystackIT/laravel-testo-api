@@ -15,15 +15,13 @@ Retrieve historical measurements, alarm events, HACCP task records, device prope
 composer require graystackit/laravel-testo-api
 ```
 
-Laravel auto-discovers the service provider. Then publish the config files:
+Laravel auto-discovers the service provider. Then publish the config file:
 
 ```bash
-php artisan vendor:publish --tag=testo-cloud-config
+php artisan vendor:publish --tag=testo-config
 ```
 
 ## Configuration
-
-### API credentials — `testo-cloud.php`
 
 Add the following to your `.env` file:
 
@@ -31,22 +29,10 @@ Add the following to your `.env` file:
 TESTO_API_KEY=your-api-key
 
 # Optional — defaults shown
-TESTO_REGION=eu           # eu | am | ap
+TESTO_REGION=eu                # eu | am | ap
 TESTO_HTTP_TIMEOUT=30
 TESTO_DOWNLOAD_TIMEOUT=120
-```
 
-Generate your API key from the Smart Connect home page. Keys are valid for up to one year.
-
-### Storage & command options — `testo.php`
-
-Publish with:
-
-```bash
-php artisan vendor:publish --tag=testo-config
-```
-
-```env
 # Store fetched measurements in the database (default: true)
 TESTO_STORE_MEASUREMENTS=true
 
@@ -55,6 +41,8 @@ TESTO_POLL_INTERVAL=5          # seconds between status checks
 TESTO_POLL_MAX_ATTEMPTS=60     # give up after this many checks (5 min total by default)
 TESTO_DEFAULT_FROM_DAYS=7      # days to look back when --from is omitted
 ```
+
+Generate your API key from the Smart Connect home page. Keys are valid for up to one year.
 
 ## Async Workflow
 

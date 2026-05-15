@@ -16,7 +16,7 @@ class TestCase extends OrchestraTestCase
 
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('testo-cloud.api_key', 'test-api-key');
-        $app['config']->set('testo-cloud.region', 'eu');
+        $app['config']->set('testo-cloud.api_key', config('testo.api_key'));
+        $app['config']->set('testo-cloud.region', config('testo.region'));
     }
 }
