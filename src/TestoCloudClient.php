@@ -8,8 +8,10 @@ use Carbon\Carbon;
 use GraystackIT\TestoCloud\Connectors\TestoDataConnector;
 use GraystackIT\TestoCloud\Data\AsyncStatusResponse;
 use GraystackIT\TestoCloud\Data\AsyncSubmitResponse;
+use GraystackIT\TestoCloud\Data\LoggerDevice;
 use GraystackIT\TestoCloud\Data\MeasurementStatusResponse;
 use GraystackIT\TestoCloud\Data\MeasurementSubmitResponse;
+use GraystackIT\TestoCloud\Parsers\DeviceNdjsonParser;
 use GraystackIT\TestoCloud\Exceptions\TestoApiException;
 use GraystackIT\TestoCloud\Requests\CheckAlarmStatusRequest;
 use GraystackIT\TestoCloud\Requests\CheckEquipmentStatusRequest;
@@ -136,6 +138,20 @@ class TestoCloudClient
     public function downloadDataFile(string $url): string
     {
         return $this->downloader->download($url);
+    }
+
+    /**
+     * Parse raw NDJSON device content into an indexed list of unique LoggerDevice objects.
+     *
+     * Multi-channel devices produce multiple rows in the raw file; this method
+     * deduplicates by device_uuid and returns one LoggerDevice per physical device.
+     *
+     * @param  string  $content  Raw NDJSON string as returned by downloadDataFile().
+     * @return array<int, LoggerDevice>
+     */
+    public function parseDeviceList(string $content): array
+    {
+        return array_values((new DeviceNdjsonParser())->parse($content));
     }
 
     // ──────────────────────────────────────────────────────────────────────────
