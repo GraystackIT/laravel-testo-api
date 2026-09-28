@@ -54,7 +54,8 @@ it('submits a measurement request and returns a MeasurementSubmitResponse', func
 
     expect($response)->toBeInstanceOf(MeasurementSubmitResponse::class)
         ->and($response->requestUuid)->toBe('uuid-123')
-        ->and($response->status)->toBe('submitted');
+        ->and($response->status)->toBe(AsyncRequestStatus::Submitted)
+        ->and($response->rawStatus)->toBe('submitted');
 
     $mockClient->assertSent(SubmitMeasurementRequest::class);
 });
@@ -141,6 +142,20 @@ it('normalises "In Progress" API status to isProcessing', function () {
 
     expect($response->isProcessing())->toBeTrue()
         ->and($response->isCompleted())->toBeFalse();
+});
+
+it('falls back to Unknown instead of Processing for an unrecognized status, and preserves the raw string', function () {
+    $mockClient = new MockClient([
+        CheckMeasurementStatusRequest::class => MockResponse::make(['status' => 'queued'], 200),
+    ]);
+
+    $response = makeClientWithMock($mockClient)->checkRequestStatus('uuid-queued');
+
+    expect($response->status)->toBe(AsyncRequestStatus::Unknown)
+        ->and($response->rawStatus)->toBe('queued')
+        ->and($response->isProcessing())->toBeFalse()
+        ->and($response->isCompleted())->toBeFalse()
+        ->and($response->isFailed())->toBeFalse();
 });
 
 it('throws TestoApiException when check status returns 404', function () {

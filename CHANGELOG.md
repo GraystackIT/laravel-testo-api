@@ -5,6 +5,56 @@ All notable changes to `graystackit/laravel-testo-api` will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Audited against Testo's Smart Connect API docs (`developers.testo.dev/smart-connect-api/`) —
+endpoint-examples overview, OData-filtering page, and changelog.
+
+### Fixed
+- `FetchMeasurementsCommand`'s poll-loop log line string-interpolated `$status->status`
+  directly — an `AsyncRequestStatus` enum *instance*, not a string. PHP does not implicitly
+  stringify enum instances, so this threw `Error: Object of class ... could not be converted to
+  string` on every poll iteration that didn't complete on the very first status check (i.e.
+  almost always in practice), crashing `testo:fetch-measurements` mid-run. Now uses the new
+  `$status->rawStatus` string property instead.
+- `MeasurementSubmitResponse` was the only submit-response DTO in the package that kept
+  `status` as a raw string instead of the shared `AsyncRequestStatus` enum every other endpoint
+  uses, and read `request_uuid` without a safe fallback. Aligned with `AsyncSubmitResponse`'s
+  shape. **Breaking:** `MeasurementSubmitResponse::$status` is now `AsyncRequestStatus`, not
+  `string` — read `$response->rawStatus` for the original string.
+- `AsyncRequestStatus::fromApiValue()` silently mapped any unrecognized status string to
+  `Processing`. A genuinely new terminal status from Testo (e.g. a future `cancelled` state)
+  would have been treated as "still processing" forever, spinning `FetchMeasurementsCommand`'s
+  poll loop until `poll_max_attempts` was exhausted instead of surfacing the real state. Added
+  an `AsyncRequestStatus::Unknown` case as the fallback instead. **Breaking:** code matching
+  exhaustively on `AsyncRequestStatus` cases needs an `Unknown` arm.
+- `config('testo.http_timeout')` was declared and documented but never actually applied to any
+  HTTP request — now wired into `TestoDataConnector` via Saloon's `defaultConfig()`.
+
+### Added
+- `AsyncSubmitResponse`, `AsyncStatusResponse`, `MeasurementStatusResponse`, and
+  `MeasurementSubmitResponse` all gained `$rawStatus` — the status string exactly as Testo
+  returned it, since `AsyncRequestStatus::Unknown` alone can't distinguish *which* unrecognized
+  status was received.
+- `MeasurementNdjsonParser` now captures `physical_unit` and `physical_extension` per row
+  (`temperature_unit`, `humidity_unit`, `temperature_extension`, `humidity_extension`) —
+  confirmed real fields per Testo's migration guide, previously discarded. Not yet persisted by
+  `FetchMeasurementsCommand`/`TestoMeasurement` (would need a migration) — available in the
+  parsed array for callers who want them.
+
+### Flagged — unverified, deliberately left unchanged pending confirmation
+- **Tasks (`/v3/tasks`):** this path does not appear anywhere in Testo's current Smart Connect
+  API reference (checked three separate official pages, all of which list the same fixed six
+  endpoint pairs with no tasks entry). A "Task Execution API" concept is referenced elsewhere
+  but its actual path could not be confirmed. See the docblocks on `SubmitTaskRequest`/
+  `CheckTaskStatusRequest`.
+- **Device/Sensor Status (`/v3/devices/status`):** Testo's changelog records a `/v4/devices/status`
+  being added, with `last_communication`/`next_communication` renamed to `..._time`,
+  `fw_code`/`fw_version` removed, and `production_date`/`battery_temperature`/`status_time`
+  added — but the docs' own endpoint-overview page still only lists v3, and the changelog never
+  states v3 is deprecated. See the docblocks on `SubmitSensorStatusRequest`/
+  `CheckSensorStatusRequest`.
+
 ## [1.0.0] - 2025-04-07
 
 ### Added

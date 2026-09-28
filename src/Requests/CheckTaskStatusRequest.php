@@ -9,6 +9,9 @@ use Saloon\Http\Request;
 
 /**
  * GET /v3/tasks/{requestUuid} — poll the status of a submitted task request.
+ *
+ * UNVERIFIED (2026-09-28): see {@see SubmitTaskRequest} — this path does not appear in Testo's
+ * current Smart Connect API reference.
  */
 class CheckTaskStatusRequest extends Request
 {

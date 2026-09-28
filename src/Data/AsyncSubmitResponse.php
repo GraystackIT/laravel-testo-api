@@ -12,9 +12,15 @@ use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
  */
 class AsyncSubmitResponse
 {
+    /**
+     * @param  string  $rawStatus  The status string exactly as Testo returned it — the only
+     *                             reliable way to read a status that doesn't map to a known
+     *                             {@see AsyncRequestStatus} case (surfaced as ::Unknown).
+     */
     public function __construct(
         public readonly string             $requestUuid,
         public readonly AsyncRequestStatus $status,
+        public readonly string             $rawStatus = '',
     ) {}
 
     /**
@@ -22,11 +28,13 @@ class AsyncSubmitResponse
      */
     public static function fromArray(array $data): self
     {
-        $uuid = $data['request_uuid'] ?? $data['requestUuid'] ?? '';
+        $uuid      = $data['request_uuid'] ?? $data['requestUuid'] ?? '';
+        $rawStatus = (string) ($data['status'] ?? 'submitted');
 
         return new self(
             requestUuid: (string) $uuid,
-            status: AsyncRequestStatus::fromApiValue((string) ($data['status'] ?? 'submitted')),
+            status: AsyncRequestStatus::fromApiValue($rawStatus),
+            rawStatus: $rawStatus,
         );
     }
 }

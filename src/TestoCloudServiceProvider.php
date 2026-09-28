@@ -26,6 +26,7 @@ class TestoCloudServiceProvider extends ServiceProvider
             return new TestoDataConnector(
                 apiKey: $apiKey,
                 region: (string) config('testo.region', 'eu'),
+                timeoutSeconds: (int) config('testo.http_timeout', 30),
             );
         });
 

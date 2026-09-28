@@ -19,6 +19,7 @@ class TestoDataConnector extends Connector
     public function __construct(
         private readonly string $apiKey,
         private readonly string $region = 'eu',
+        private readonly int $timeoutSeconds = 30,
     ) {}
 
     public function resolveBaseUrl(): string
@@ -33,6 +34,16 @@ class TestoDataConnector extends Connector
     {
         return [
             'x-custom-api-key' => $this->apiKey,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function defaultConfig(): array
+    {
+        return [
+            'timeout' => $this->timeoutSeconds,
         ];
     }
 

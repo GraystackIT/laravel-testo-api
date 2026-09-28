@@ -58,6 +58,10 @@ submit() → Submitted → Processing → Completed
                                Failed
 ```
 
+An unrecognized status string from Testo (e.g. a future state not listed above) maps to
+`AsyncRequestStatus::Unknown` rather than being silently treated as still-processing — check
+`$response->rawStatus` for the exact string Testo returned in that case.
+
 ## Usage
 
 Resolve `TestoCloudClient` from the container or inject via constructor.
@@ -103,8 +107,20 @@ if ($status->isCompleted()) {
 use GraystackIT\TestoCloud\Parsers\MeasurementNdjsonParser;
 
 $measurements = (new MeasurementNdjsonParser())->parse($content);
-// [['timestamp' => '...', 'temperature' => 21.5, 'humidity' => 55.0], ...]
+// [['timestamp' => '...', 'temperature' => 21.5, 'humidity' => 55.0,
+//   'temperature_unit' => '°C', 'humidity_unit' => '%RH',
+//   'temperature_extension' => null, 'humidity_extension' => null], ...]
 ```
+
+> `physical_extension` disambiguates rows that share the same `physical_property_name` (e.g. an
+> external-probe temperature reading vs. the logger's own internal sensor) — read
+> `temperature_extension`/`humidity_extension` when a logger reports more than one of each.
+>
+> The optional `$deviceUuid` filter assumes measurement rows carry a `device_uuid` field.
+> Testo's migration guide instead documents `serial_no` as the sensor identifier on measurement
+> values — this is unconfirmed against a live payload either way. Rows with no `device_uuid` key
+> are never filtered out, so an incorrect assumption here degrades safely (passes everything
+> through) rather than silently dropping data.
 
 ---
 
@@ -136,6 +152,14 @@ if ($status->isCompleted()) {
 ### Tasks  `POST /v3/tasks`  •  `GET /v3/tasks/{uuid}`
 
 Retrieve quality-management / HACCP activity records executed by staff.
+
+> ⚠️ **Unverified (2026-09-28):** this path does not appear anywhere in Testo's current Smart
+> Connect API reference — checked the endpoint-examples overview, the OData filtering page, and
+> the changelog, all of which enumerate the same fixed set of six endpoint pairs (device
+> properties, device status, measurements, alarms, locations, measuring objects) with no tasks
+> entry. A separate "Task Execution API" concept is referenced elsewhere but its actual endpoint
+> path could not be confirmed. Verify against a live API key (or with Testo) before relying on
+> this — it may 404, live under a different path, or belong to a different API family entirely.
 
 ```php
 $submit = $client->submitTaskRequest(
@@ -179,6 +203,17 @@ Retrieve battery level, signal strength, last communication timestamp,
 firmware version, and serial numbers for all devices.
 
 > No date range required — returns current status snapshot.
+>
+> ⚠️ **Needs verification (2026-09-28):** Testo's changelog records `/v4/devices/status` being
+> added on top of this v3 path, renaming `last_communication`/`next_communication` to
+> `..._time`, removing `fw_code`/`fw_version` (now under `/v3/devices/properties`, used by
+> [Device Properties](#device-properties-post-v3devicesproperties--get-v3devicespropertiesuuid)
+> above), and adding `production_date`/`battery_temperature`/`status_time`. The changelog never
+> states v3 is deprecated, but the docs' own endpoint-overview page still only lists v3 — the two
+> sources disagree, so the version wasn't changed pending confirmation of which is actually
+> current. This package doesn't parse any device-status-specific fields into a typed DTO today
+> (only the generic async wrapper below), so the version gap is lower-risk than it looks, but
+> should move to v4 once confirmed live.
 
 ```php
 $submit = $client->submitSensorStatusRequest();
@@ -242,6 +277,7 @@ Returned by every `submit*()` method.
 |---|---|---|
 | `requestUuid` | `string` | UUID to use when polling status |
 | `status` | `AsyncRequestStatus` | Enum — `Submitted` on initial response |
+| `rawStatus` | `string` | The status string exactly as Testo returned it |
 
 ### Status response — `AsyncStatusResponse`
 
@@ -253,6 +289,7 @@ Returned by every `check*Status()` method.
 | `dataUrls` | `string[]` | Download URLs (populated when completed) |
 | `metadataUrl` | `?string` | Metadata file URL (populated when completed) |
 | `error` | `?string` | Error message (populated when failed) |
+| `rawStatus` | `string` | The status string exactly as Testo returned it |
 
 Helper methods: `isCompleted()`, `isProcessing()`, `isFailed()`
 
@@ -265,18 +302,24 @@ AsyncRequestStatus::Submitted   // initial acknowledgment
 AsyncRequestStatus::Processing  // API is preparing data ("In Progress" normalised)
 AsyncRequestStatus::Completed   // data ready for download
 AsyncRequestStatus::Failed      // see $response->error
+AsyncRequestStatus::Unknown     // any status string Testo returns that isn't one of the above
 ```
 
-The enum normalises all API status strings, including `"In Progress"` → `Processing`.
+The enum normalises all API status strings, including `"In Progress"` → `Processing`. An
+unrecognized string never falls back to `Processing` — it maps to `Unknown` instead, so a
+future new terminal status can't get stuck looking like it's still in progress. Read
+`$response->rawStatus` to see the original string in that case.
 
-### Legacy measurement objects
+### Measurement-specific objects
 
-Used by `checkRequestStatus()` (measurements only):
+Used by `submitMeasurementRequest()`/`checkRequestStatus()` (measurements only — kept as their
+own classes since measurements has its own endpoint/status vocabulary separate from the shared
+Alarms/Tasks/Equipment/Sensors/Measuring-Objects modules, but shaped the same way):
 
 | Class | Properties |
 |---|---|
-| `MeasurementSubmitResponse` | `requestUuid`, `status` (string) |
-| `MeasurementStatusResponse` | `status`, `dataUrls[]`, `metadataUrl`, `error`, helpers |
+| `MeasurementSubmitResponse` | `requestUuid`, `status` (`AsyncRequestStatus`), `rawStatus` |
+| `MeasurementStatusResponse` | `status`, `dataUrls[]`, `metadataUrl`, `error`, `rawStatus`, helpers |
 
 ---
 
@@ -401,8 +444,8 @@ php artisan testo:fetch-measurements --from=2025-03-01 --to=2025-03-31 --logger-
 Fetching measurements from 2025-01-01 to 2025-01-31...
 Request submitted. UUID: 9f4a1b2c-...
 Polling for completion (max 60 attempts, 5s interval)...
-  [1/60] Status: Submitted — waiting 5s...
-  [2/60] Status: Processing — waiting 5s...
+  [1/60] Status: submitted — waiting 5s...
+  [2/60] Status: processing — waiting 5s...
 Status: completed.
 Downloading 2 data file(s)...
   [1/2] Downloaded.

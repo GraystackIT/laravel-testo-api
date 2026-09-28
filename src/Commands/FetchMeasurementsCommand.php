@@ -84,7 +84,7 @@ class FetchMeasurementsCommand extends Command
                 return self::FAILURE;
             }
 
-            $this->line("  [{$attempt}/{$maxAttempts}] Status: {$status->status} — waiting {$interval}s...");
+            $this->line("  [{$attempt}/{$maxAttempts}] Status: {$status->rawStatus} — waiting {$interval}s...");
             sleep($interval);
         }
 

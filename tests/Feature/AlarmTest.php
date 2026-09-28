@@ -43,7 +43,8 @@ it('submits an alarm request and returns AsyncSubmitResponse', function () {
 
     expect($response)->toBeInstanceOf(AsyncSubmitResponse::class)
         ->and($response->requestUuid)->toBe('alarm-uuid-1')
-        ->and($response->status)->toBe(AsyncRequestStatus::Submitted);
+        ->and($response->status)->toBe(AsyncRequestStatus::Submitted)
+        ->and($response->rawStatus)->toBe('submitted');
 
     $mockClient->assertSent(SubmitAlarmRequest::class);
 });
@@ -112,6 +113,20 @@ it('normalises "In Progress" status to processing enum case', function () {
 
     expect($response->isProcessing())->toBeTrue()
         ->and($response->isCompleted())->toBeFalse();
+});
+
+it('falls back to Unknown instead of Processing for an unrecognized alarm status', function () {
+    $mockClient = new MockClient([
+        CheckAlarmStatusRequest::class => MockResponse::make(['status' => 'cancelled'], 200),
+    ]);
+
+    $response = makeAlarmClient($mockClient)->checkAlarmStatus('alarm-uuid-3');
+
+    expect($response->status)->toBe(AsyncRequestStatus::Unknown)
+        ->and($response->rawStatus)->toBe('cancelled')
+        ->and($response->isProcessing())->toBeFalse()
+        ->and($response->isCompleted())->toBeFalse()
+        ->and($response->isFailed())->toBeFalse();
 });
 
 it('throws TestoApiException when alarm status check returns 404', function () {
