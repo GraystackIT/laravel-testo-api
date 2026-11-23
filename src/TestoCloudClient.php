@@ -45,16 +45,22 @@ class TestoCloudClient
     /**
      * Submit an asynchronous measurement data request.
      *
-     * @throws \InvalidArgumentException  when $from is not before $to
+     * Narrow it with OData, e.g. ['$filter' => "serial_no eq '12345678'"] for one sensor.
+     * Measurement rows name the sensor (sensor_uuid, serial_no), never the device.
+     *
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when $from is not before $to, or an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitMeasurementRequest(Carbon $from, Carbon $to, string $format = 'JSON'): MeasurementSubmitResponse
+    public function submitMeasurementRequest(Carbon $from, Carbon $to, string $format = 'JSON', array $odata = []): MeasurementSubmitResponse
     {
         if ($from->greaterThanOrEqualTo($to)) {
             throw new \InvalidArgumentException(
                 "The \$from date ({$from->toIso8601String()}) must be before the \$to date ({$to->toIso8601String()})."
             );
         }
+
+        $request = new SubmitMeasurementRequest($from, $to, $format, $odata);
 
         Log::info('TestoCloudClient: submitting measurement request', [
             'from'   => $from->toIso8601String(),
@@ -63,18 +69,14 @@ class TestoCloudClient
         ]);
 
         try {
-            $response = $this->connector->send(new SubmitMeasurementRequest($from, $to, $format));
+            $response = $this->connector->send($request);
         } catch (RequestException $e) {
             Log::error('TestoCloudClient: submit measurement request failed', [
                 'status' => $e->getResponse()->status(),
                 'body'   => substr($e->getResponse()->body(), 0, 500),
             ]);
 
-            throw new TestoApiException(
-                "Testo API returned HTTP {$e->getResponse()->status()} when submitting measurement request",
-                $e->getResponse()->status(),
-                $e
-            );
+            throw TestoApiException::fromRequestException($e, "Testo API returned HTTP {$e->getResponse()->status()} when submitting measurement request");
         } catch (\Throwable $e) {
             Log::error('TestoCloudClient: unexpected error submitting measurement request', ['message' => $e->getMessage()]);
 
@@ -110,11 +112,7 @@ class TestoCloudClient
                 'body'         => substr($e->getResponse()->body(), 0, 500),
             ]);
 
-            throw new TestoApiException(
-                "Testo API returned HTTP {$e->getResponse()->status()} checking status for {$requestUuid}",
-                $e->getResponse()->status(),
-                $e
-            );
+            throw TestoApiException::fromRequestException($e, "Testo API returned HTTP {$e->getResponse()->status()} checking status for {$requestUuid}");
         } catch (\Throwable $e) {
             Log::error('TestoCloudClient: unexpected error checking request status', ['message' => $e->getMessage()]);
 
@@ -161,10 +159,11 @@ class TestoCloudClient
     /**
      * Initiate an asynchronous historical alarm export.
      *
-     * @throws \InvalidArgumentException  when $from is not before $to
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when $from is not before $to, or an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitAlarmRequest(Carbon $from, Carbon $to, string $format = 'JSON'): AsyncSubmitResponse
+    public function submitAlarmRequest(Carbon $from, Carbon $to, string $format = 'JSON', array $odata = []): AsyncSubmitResponse
     {
         if ($from->greaterThanOrEqualTo($to)) {
             throw new \InvalidArgumentException(
@@ -178,7 +177,7 @@ class TestoCloudClient
             'format' => $format,
         ]);
 
-        $data = $this->sendAsyncSubmit(new SubmitAlarmRequest($from, $to, $format), 'alarm');
+        $data = $this->sendAsyncSubmit(new SubmitAlarmRequest($from, $to, $format, $odata), 'alarm');
 
         Log::info('TestoCloudClient: alarm request submitted', ['request_uuid' => $data['request_uuid']]);
 
@@ -196,11 +195,15 @@ class TestoCloudClient
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Tasks  POST /v3/tasks  •  GET /v3/tasks/{uuid}
+    // Tasks  POST /v3/tasks  •  GET /v3/tasks/{uuid}  — deprecated: not part of the API
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Initiate an asynchronous quality-management / HACCP task export.
+     *
+     * @deprecated Testo's Smart Connect API has no tasks endpoint: /v3/tasks is in neither its
+     *             API reference nor its changelog, so this request fails. Kept only so
+     *             existing callers keep compiling; it will be removed in the next major version.
      *
      * @throws \InvalidArgumentException  when $from is not before $to
      * @throws TestoApiException
@@ -229,6 +232,10 @@ class TestoCloudClient
     /**
      * Poll the status of a previously submitted task request.
      *
+     * @deprecated Testo's Smart Connect API has no tasks endpoint: /v3/tasks is in neither its
+     *             API reference nor its changelog, so this request fails. Kept only so
+     *             existing callers keep compiling; it will be removed in the next major version.
+     *
      * @throws TestoApiException
      */
     public function checkTaskStatus(string $requestUuid): AsyncStatusResponse
@@ -246,13 +253,15 @@ class TestoCloudClient
      * Returns device metadata including serial numbers, model codes, firmware versions,
      * calibration status, and equipment relationships.
      *
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitEquipmentRequest(string $format = 'JSON'): AsyncSubmitResponse
+    public function submitEquipmentRequest(string $format = 'JSON', array $odata = []): AsyncSubmitResponse
     {
         Log::info('TestoCloudClient: submitting device properties request', ['format' => $format]);
 
-        $data = $this->sendAsyncSubmit(new SubmitEquipmentRequest($format), 'device properties');
+        $data = $this->sendAsyncSubmit(new SubmitEquipmentRequest($format, $odata), 'device properties');
 
         Log::info('TestoCloudClient: device properties request submitted', ['request_uuid' => $data['request_uuid']]);
 
@@ -270,22 +279,26 @@ class TestoCloudClient
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // Device Status  POST /v3/devices/status  •  GET /v3/devices/status/{uuid}
+    // Device Status  POST /v4/devices/status  •  GET /v4/devices/status/{uuid}
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
      * Initiate an asynchronous device health/connectivity status export.
      *
-     * Returns battery level, signal strength, last communication timestamp,
-     * firmware version, and serial numbers for all devices.
+     * One row per device: serial_no, connection_type, radio_level_percent,
+     * battery_level_percent, battery_temperature, is_powersupply_on,
+     * last_communication_time, next_communication_time and status_time.
+     * Firmware versions come from {@see self::submitEquipmentRequest()} instead.
      *
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitSensorStatusRequest(string $format = 'JSON'): AsyncSubmitResponse
+    public function submitSensorStatusRequest(string $format = 'JSON', array $odata = []): AsyncSubmitResponse
     {
         Log::info('TestoCloudClient: submitting device status request', ['format' => $format]);
 
-        $data = $this->sendAsyncSubmit(new SubmitSensorStatusRequest($format), 'device status');
+        $data = $this->sendAsyncSubmit(new SubmitSensorStatusRequest($format, $odata), 'device status');
 
         Log::info('TestoCloudClient: device status request submitted', ['request_uuid' => $data['request_uuid']]);
 
@@ -312,13 +325,15 @@ class TestoCloudClient
      * Returns customer_uuid, customer_site, product_family_id, measurement
      * configurations, and channel assignments.
      *
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitMeasuringObjectRequest(string $format = 'JSON'): AsyncSubmitResponse
+    public function submitMeasuringObjectRequest(string $format = 'JSON', array $odata = []): AsyncSubmitResponse
     {
         Log::info('TestoCloudClient: submitting measuring object request', ['format' => $format]);
 
-        $data = $this->sendAsyncSubmit(new SubmitMeasuringObjectRequest($format), 'measuring object');
+        $data = $this->sendAsyncSubmit(new SubmitMeasuringObjectRequest($format, $odata), 'measuring object');
 
         Log::info('TestoCloudClient: measuring object request submitted', ['request_uuid' => $data['request_uuid']]);
 
@@ -344,13 +359,15 @@ class TestoCloudClient
      *
      * Returns the location structure (sites, zones, rooms) associated with the account.
      *
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options; field names differ per endpoint
+     * @throws \InvalidArgumentException  when an OData option is unknown
      * @throws TestoApiException
      */
-    public function submitLocationRequest(string $format = 'JSON'): AsyncSubmitResponse
+    public function submitLocationRequest(string $format = 'JSON', array $odata = []): AsyncSubmitResponse
     {
         Log::info('TestoCloudClient: submitting location request', ['format' => $format]);
 
-        $data = $this->sendAsyncSubmit(new SubmitLocationRequest($format), 'location');
+        $data = $this->sendAsyncSubmit(new SubmitLocationRequest($format, $odata), 'location');
 
         Log::info('TestoCloudClient: location request submitted', ['request_uuid' => $data['request_uuid']]);
 
@@ -388,11 +405,7 @@ class TestoCloudClient
                 'body'   => substr($e->getResponse()->body(), 0, 500),
             ]);
 
-            throw new TestoApiException(
-                "Testo API returned HTTP {$e->getResponse()->status()} when submitting {$module} request",
-                $e->getResponse()->status(),
-                $e
-            );
+            throw TestoApiException::fromRequestException($e, "Testo API returned HTTP {$e->getResponse()->status()} when submitting {$module} request");
         } catch (\Throwable $e) {
             Log::error("TestoCloudClient: unexpected error submitting {$module} request", ['message' => $e->getMessage()]);
 
@@ -426,11 +439,7 @@ class TestoCloudClient
                 'body'         => substr($e->getResponse()->body(), 0, 500),
             ]);
 
-            throw new TestoApiException(
-                "Testo API returned HTTP {$e->getResponse()->status()} checking {$module} status for {$requestUuid}",
-                $e->getResponse()->status(),
-                $e
-            );
+            throw TestoApiException::fromRequestException($e, "Testo API returned HTTP {$e->getResponse()->status()} checking {$module} status for {$requestUuid}");
         } catch (\Throwable $e) {
             Log::error("TestoCloudClient: unexpected error checking {$module} status", ['message' => $e->getMessage()]);
 

@@ -33,7 +33,7 @@ class MeasurementStatusResponse
             status:      AsyncRequestStatus::fromApiValue($rawStatus),
             dataUrls:    (array) ($data['data_urls'] ?? []),
             metadataUrl: isset($data['metadata_url']) ? (string) $data['metadata_url'] : null,
-            error:       isset($data['error']) ? (string) $data['error'] : null,
+            error:       self::errorText($data),
             rawStatus:   $rawStatus,
         );
     }
@@ -51,5 +51,22 @@ class MeasurementStatusResponse
     public function isFailed(): bool
     {
         return $this->status->isFailed();
+    }
+
+    /**
+     * The error text of a failed request: Testo's `message`, or a legacy `error` key.
+     *
+     * @param  array<string, mixed>  $data  The decoded status response.
+     * @return string|null
+     */
+    private static function errorText(array $data): ?string
+    {
+        foreach (['message', 'error'] as $key) {
+            if (isset($data[$key]) && is_scalar($data[$key]) && (string) $data[$key] !== '') {
+                return (string) $data[$key];
+            }
+        }
+
+        return null;
     }
 }

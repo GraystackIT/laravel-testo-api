@@ -10,45 +10,47 @@ use Saloon\Http\Request;
 use Saloon\Traits\Body\HasJsonBody;
 
 /**
- * POST /v3/devices/status — initiate an asynchronous device health/connectivity status export.
+ * POST /v4/devices/status — initiate an asynchronous device health/connectivity status export.
  *
- * Returns battery level, signal strength, last communication timestamp,
- * firmware version, and serial numbers for all devices.
- *
- * NEEDS VERIFICATION (2026-09-28): Testo's changelog records `/v4/devices/status` being added
- * on top of this v3 path, with `last_communication`/`next_communication` renamed to
- * `..._time`, `fw_code`/`fw_version` removed (now under `/v3/devices/properties`, which
- * Equipment already calls), and `production_date`/`battery_temperature`/`status_time` added.
- * The changelog never states v3 is deprecated, but the docs' own endpoint-overview page still
- * only lists v3 — the two sources disagree, so this wasn't changed pending confirmation
- * whichever is actually current. This package doesn't parse any device-status-specific fields
- * into a typed DTO today (only the generic async wrapper), so the version gap is lower-risk
- * than it looks, but should still move to v4 once confirmed live.
+ * One row per device: serial_no, model_code, production_date, connection_type,
+ * radio_level_percent, battery_level_percent, battery_temperature, is_powersupply_on,
+ * last_communication_time, next_communication_time and status_time. v4 is the only
+ * version in Testo's API reference; it replaced v3, renaming last_communication /
+ * next_communication to ..._time and dropping fw_code / fw_version, which
+ * /v3/devices/properties (Equipment) still returns.
  */
 class SubmitSensorStatusRequest extends Request implements HasBody
 {
     use HasJsonBody;
+    use Concerns\SendsODataOptions;
 
     protected Method $method = Method::POST;
 
+    /**
+     * @param  string  $format  Result file format: CSV, JSON, PARQUET, ORC, AVRO or TEXTFILE.
+     * @param  array{'$filter'?: string, '$select'?: string, '$orderby'?: string}  $odata  OData query options.
+     */
     public function __construct(
         private readonly string $format = 'JSON',
-    ) {}
+        private readonly array $odata = [],
+    ) {
+        $this->assertValidOData($this->odata);
+    }
 
     public function resolveEndpoint(): string
     {
-        return '/v3/devices/status';
+        return '/v4/devices/status';
     }
 
     /**
-     * @return array{options: array{result_file_format: string}}
+     * @return array<string, mixed>
      */
     protected function defaultBody(): array
     {
-        return [
+        return $this->withOData([
             'options' => [
                 'result_file_format' => $this->format,
             ],
-        ];
+        ], $this->odata);
     }
 }

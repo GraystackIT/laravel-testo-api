@@ -13,6 +13,7 @@ use Saloon\Traits\Body\HasJsonBody;
 class SubmitMeasurementRequest extends Request implements HasBody
 {
     use HasJsonBody;
+    use Concerns\SendsODataOptions;
 
     protected Method $method = Method::POST;
 
@@ -20,7 +21,10 @@ class SubmitMeasurementRequest extends Request implements HasBody
         private readonly Carbon $from,
         private readonly Carbon $to,
         private readonly string $format = 'JSON',
-    ) {}
+        private readonly array $odata = [],
+    ) {
+        $this->assertValidOData($this->odata);
+    }
 
     public function resolveEndpoint(): string
     {
@@ -28,16 +32,16 @@ class SubmitMeasurementRequest extends Request implements HasBody
     }
 
     /**
-     * @return array{date_time_from: string, date_time_until: string, options: array{result_file_format: string}}
+     * @return array<string, mixed>
      */
     protected function defaultBody(): array
     {
-        return [
+        return $this->withOData([
             'date_time_from'  => $this->from->toIso8601String(),
             'date_time_until' => $this->to->toIso8601String(),
             'options'         => [
                 'result_file_format' => $this->format,
             ],
-        ];
+        ], $this->odata);
     }
 }

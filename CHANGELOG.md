@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Second audit (2026-11-23), against Testo's OpenAPI reference
+
+Audited against `smart-connect-api/api_reference/swagger.json`, the Smart Connect changelog and
+FAQ. The spec settles both questions the first audit left open: device status exists only as v4,
+and there is no tasks endpoint.
+
+#### Fixed
+- **A failed Testo request is reported as failed.** Testo's poll endpoints answer `Completed`,
+  `In Progress` or `Error`; `AsyncRequestStatus::fromApiValue()` mapped `failed` but not `error`,
+  so a failed request came back `Unknown` and `testo:fetch-measurements` (and any caller checking
+  `isFailed()`) kept polling until its attempts ran out. `Error` now maps to `Failed`. The status
+  DTOs read the error text from Testo's `message`, falling back to `error`.
+- **Measurements of one logger can be narrowed for real.** Testo's measurement rows carry no
+  `device_uuid` — they name the sensor (`sensor_uuid`, `serial_no`) — so
+  `MeasurementNdjsonParser::parse($ndjson, $deviceUuid)` never filtered, and readings of several
+  loggers at the same timestamp overwrote each other. `parse()` takes a new
+  `array $sensorUuids` and keeps only those sensors' rows. `LoggerDevice` gains `$sensorUuids` and
+  `$sensorSerialNos`, which `DeviceNdjsonParser` now collects from every channel row of a device
+  instead of keeping only the first. When `$deviceUuid` is given but cannot be applied, all rows
+  are still returned, as before, and a warning is logged.
+- Device status moved to `/v4/devices/status`, the only version in the API reference. v4 renames
+  `last_communication`/`next_communication` to `..._time` and drops `fw_code`/`fw_version`
+  (still on `/v3/devices/properties`).
+
+#### Deprecated
+- `submitTaskRequest()`, `checkTaskStatus()`, `SubmitTaskRequest`, `CheckTaskStatusRequest`:
+  Testo has no tasks endpoint; the requests cannot succeed. Removed in the next major version.
+
+#### Added
+- OData options on every `submit*Request()` method and request, as a trailing
+  `array $odata` (`$filter`, `$select`, `$orderby`), sent as the body's `odata` object; anything
+  else throws `InvalidArgumentException`. New concern `Requests\Concerns\SendsODataOptions`.
+- `TestoApiException` carries Testo's `application/problem+json` error: `problemType`,
+  `problemTitle`, `detail` (or a plain `message`), with `isQuotaExceeded()` for the monthly limit
+  of 10,000 POST requests per account. New `TestoApiException::fromRequestException()`; the
+  message and code are unchanged, and the three-argument constructor still works.
+
+#### Not acted on
+- Measuring objects gained `back_reference` (Testo, 2026-07-13). The package passes measuring-object
+  rows through unparsed, so nothing changes.
+
+### First audit (2026-09-28)
+
 Audited against Testo's Smart Connect API docs (`developers.testo.dev/smart-connect-api/`) —
 endpoint-examples overview, OData-filtering page, and changelog.
 

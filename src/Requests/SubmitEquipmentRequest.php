@@ -18,12 +18,16 @@ use Saloon\Traits\Body\HasJsonBody;
 class SubmitEquipmentRequest extends Request implements HasBody
 {
     use HasJsonBody;
+    use Concerns\SendsODataOptions;
 
     protected Method $method = Method::POST;
 
     public function __construct(
         private readonly string $format = 'JSON',
-    ) {}
+        private readonly array $odata = [],
+    ) {
+        $this->assertValidOData($this->odata);
+    }
 
     public function resolveEndpoint(): string
     {
@@ -31,14 +35,14 @@ class SubmitEquipmentRequest extends Request implements HasBody
     }
 
     /**
-     * @return array{options: array{result_file_format: string}}
+     * @return array<string, mixed>
      */
     protected function defaultBody(): array
     {
-        return [
+        return $this->withOData([
             'options' => [
                 'result_file_format' => $this->format,
             ],
-        ];
+        ], $this->odata);
     }
 }

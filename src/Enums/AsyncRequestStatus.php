@@ -22,8 +22,13 @@ enum AsyncRequestStatus: string
     case Unknown = 'unknown';
 
     /**
-     * Normalise the raw API status string (which may be "In Progress", "Completed", etc.)
-     * into a typed enum case.
+     * Normalise the raw API status string into a typed enum case.
+     *
+     * Testo's poll endpoints answer `Completed`, `In Progress` or `Error`; `Error`
+     * is the failed state and maps to {@see self::Failed}.
+     *
+     * @param  string  $value  The status string Testo returned.
+     * @return self
      */
     public static function fromApiValue(string $value): self
     {
@@ -31,7 +36,7 @@ enum AsyncRequestStatus: string
             'submitted'              => self::Submitted,
             'inprogress', 'processing' => self::Processing,
             'completed'              => self::Completed,
-            'failed'                 => self::Failed,
+            'error', 'failed'        => self::Failed,
             default                  => self::Unknown,
         };
     }

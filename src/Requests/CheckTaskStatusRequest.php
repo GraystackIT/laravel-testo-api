@@ -10,8 +10,11 @@ use Saloon\Http\Request;
 /**
  * GET /v3/tasks/{requestUuid} — poll the status of a submitted task request.
  *
- * UNVERIFIED (2026-09-28): see {@see SubmitTaskRequest} — this path does not appear in Testo's
- * current Smart Connect API reference.
+ * @deprecated Testo's Smart Connect API has no tasks endpoint. Its OpenAPI reference
+ *             (api_reference/swagger.json) lists exactly six endpoint pairs — device
+ *             properties, device status, measurements, alarms, locations and measuring
+ *             objects — and the changelog never added tasks, so this request fails.
+ *             Kept only so existing callers keep compiling; removed in the next major version.
  */
 class CheckTaskStatusRequest extends Request
 {

@@ -8,10 +8,9 @@ use Saloon\Enums\Method;
 use Saloon\Http\Request;
 
 /**
- * GET /v3/devices/status/{requestUuid} — poll the status of a submitted device-status request.
+ * GET /v4/devices/status/{requestUuid} — poll the status of a submitted device-status request.
  *
- * NEEDS VERIFICATION (2026-09-28): see {@see SubmitSensorStatusRequest} — Testo's changelog
- * records a v4 of this endpoint pair.
+ * See {@see SubmitSensorStatusRequest} for the v4 row fields.
  */
 class CheckSensorStatusRequest extends Request
 {
@@ -23,6 +22,6 @@ class CheckSensorStatusRequest extends Request
 
     public function resolveEndpoint(): string
     {
-        return "/v3/devices/status/{$this->requestUuid}";
+        return "/v4/devices/status/{$this->requestUuid}";
     }
 }

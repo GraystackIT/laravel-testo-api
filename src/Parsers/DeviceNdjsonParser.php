@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\Log;
  * Parses newline-delimited JSON (NDJSON) device data from the Testo Cloud API.
  *
  * Multi-channel devices produce one row per channel in the raw file; this parser
- * deduplicates by device_uuid so callers receive one LoggerDevice per physical device.
+ * deduplicates by device_uuid so callers receive one LoggerDevice per physical device,
+ * carrying the UUIDs and serial numbers of all its sensors.
  */
 class DeviceNdjsonParser
 {
@@ -68,10 +69,11 @@ class DeviceNdjsonParser
                 continue;
             }
 
-            // First occurrence wins — all channels share the same device metadata
-            if (! isset($devices[$device->uuid])) {
-                $devices[$device->uuid] = $device;
-            }
+            // First occurrence wins for the device metadata, which all channels share;
+            // every channel row adds its sensor.
+            $devices[$device->uuid] = isset($devices[$device->uuid])
+                ? $devices[$device->uuid]->withSensorsOf($device)
+                : $device;
         }
 
         Log::info('DeviceNdjsonParser: parsed devices', [
@@ -83,7 +85,8 @@ class DeviceNdjsonParser
     }
 
     /**
-     * Index an array of LoggerDevice objects by uuid; first occurrence wins.
+     * Index an array of LoggerDevice objects by uuid; the first occurrence keeps the
+     * device metadata and later ones add their sensors.
      *
      * @param  array<int, LoggerDevice>  $devices
      * @return array<string, LoggerDevice>
@@ -93,9 +96,13 @@ class DeviceNdjsonParser
         $indexed = [];
 
         foreach ($devices as $device) {
-            if ($device->uuid !== '' && ! isset($indexed[$device->uuid])) {
-                $indexed[$device->uuid] = $device;
+            if ($device->uuid === '') {
+                continue;
             }
+
+            $indexed[$device->uuid] = isset($indexed[$device->uuid])
+                ? $indexed[$device->uuid]->withSensorsOf($device)
+                : $device;
         }
 
         return $indexed;

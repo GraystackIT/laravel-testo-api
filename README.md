@@ -2,7 +2,7 @@
 
 A Laravel package for the **Testo Smart Connect API**, built on [Saloon 4](https://docs.saloon.dev/).
 
-Retrieve historical measurements, alarm events, HACCP task records, device properties, device health status, measuring object configurations, and location hierarchies from Testo Smart Connect — all with a clean, Laravel-native interface.
+Retrieve historical measurements, alarm events, device properties, device health status, measuring object configurations, and location hierarchies from Testo Smart Connect — all with a clean, Laravel-native interface.
 
 ## Requirements
 
@@ -84,6 +84,7 @@ $submit = $client->submitMeasurementRequest(
     from:   Carbon::parse('2025-01-01'),
     to:     Carbon::parse('2025-01-31'),
     format: 'JSON',  // optional, default 'JSON'
+    odata:  ['$filter' => "serial_no eq '12345678'"],  // optional — see OData filtering below
 );
 
 echo $submit->requestUuid;
@@ -115,12 +116,28 @@ $measurements = (new MeasurementNdjsonParser())->parse($content);
 > `physical_extension` disambiguates rows that share the same `physical_property_name` (e.g. an
 > external-probe temperature reading vs. the logger's own internal sensor) — read
 > `temperature_extension`/`humidity_extension` when a logger reports more than one of each.
->
-> The optional `$deviceUuid` filter assumes measurement rows carry a `device_uuid` field.
-> Testo's migration guide instead documents `serial_no` as the sensor identifier on measurement
-> values — this is unconfirmed against a live payload either way. Rows with no `device_uuid` key
-> are never filtered out, so an incorrect assumption here degrades safely (passes everything
-> through) rather than silently dropping data.
+
+#### Measurements of one logger
+
+`/v2/measurements` returns the readings of **every** logger of the account, and the parser merges
+rows by timestamp — so without narrowing, readings of different loggers at the same moment
+overwrite each other. Measurement rows name the **sensor** (`sensor_uuid`, and the sensor's
+`serial_no`), never the device. Get a logger's sensors from Device Properties and pass them:
+
+```php
+$devices = $client->parseDeviceList($devicePropertiesContent);   // LoggerDevice[]
+$logger  = $devices[0];
+$logger->sensorUuids;      // ['sen-...', ...] — one per channel's sensor
+$logger->sensorSerialNos;  // matching serial numbers
+
+$measurements = (new MeasurementNdjsonParser())->parse($content, sensorUuids: $logger->sensorUuids);
+```
+
+The older `$deviceUuid` argument is still honoured for rows that carry a `device_uuid`, but Testo's
+measurement rows don't. When a device filter is given and cannot be applied, every row is kept and
+a warning is logged (`device filter could not be applied`) — pass the sensor UUIDs instead. To
+avoid downloading other loggers' data at all, filter the request itself with OData, e.g.
+`['$filter' => "serial_no eq '12345678'"]`; each submit counts against the monthly limit, though.
 
 ---
 
@@ -149,30 +166,13 @@ if ($status->isCompleted()) {
 
 ---
 
-### Tasks  `POST /v3/tasks`  •  `GET /v3/tasks/{uuid}`
+### Tasks (deprecated)  `POST /v3/tasks`  •  `GET /v3/tasks/{uuid}`
 
-Retrieve quality-management / HACCP activity records executed by staff.
-
-> ⚠️ **Unverified (2026-09-28):** this path does not appear anywhere in Testo's current Smart
-> Connect API reference — checked the endpoint-examples overview, the OData filtering page, and
-> the changelog, all of which enumerate the same fixed set of six endpoint pairs (device
-> properties, device status, measurements, alarms, locations, measuring objects) with no tasks
-> entry. A separate "Task Execution API" concept is referenced elsewhere but its actual endpoint
-> path could not be confirmed. Verify against a live API key (or with Testo) before relying on
-> this — it may 404, live under a different path, or belong to a different API family entirely.
-
-```php
-$submit = $client->submitTaskRequest(
-    from: Carbon::parse('2025-01-01'),
-    to:   Carbon::parse('2025-01-31'),
-);
-
-$status = $client->checkTaskStatus($submit->requestUuid);
-
-if ($status->isFailed()) {
-    logger()->error($status->error);
-}
-```
+> ⚠️ **Deprecated — this endpoint does not exist.** Testo's OpenAPI reference
+> (`smart-connect-api/api_reference/swagger.json`) lists exactly six endpoint pairs — device
+> properties, device status, measurements, alarms, locations and measuring objects — and its
+> changelog never added tasks. `submitTaskRequest()`/`checkTaskStatus()` are kept only so existing
+> callers keep compiling and will be removed in the next major version. Don't call them.
 
 ---
 
@@ -182,6 +182,10 @@ Retrieve device metadata including serial numbers, model codes, firmware version
 calibration status, and equipment relationships.
 
 > No date range required — returns current configuration.
+
+Device properties hold one row per **channel**, with `device_uuid` and `sensor_uuid` — the only
+place that links a logger to the sensors its measurements and alarms are reported under.
+`parseDeviceList()` returns one `LoggerDevice` per device with all its `sensorUuids`.
 
 ```php
 $submit = $client->submitEquipmentRequest(format: 'JSON');  // format optional
@@ -197,23 +201,18 @@ if ($status->isCompleted()) {
 
 ---
 
-### Device Status  `POST /v3/devices/status`  •  `GET /v3/devices/status/{uuid}`
+### Device Status  `POST /v4/devices/status`  •  `GET /v4/devices/status/{uuid}`
 
-Retrieve battery level, signal strength, last communication timestamp,
-firmware version, and serial numbers for all devices.
+One row per device: `serial_no`, `model_code`, `production_date`, `connection_type`
+(`WIFI`/`ETHERNET`/`UNKNOWN`), `radio_level_percent`, `battery_level_percent`,
+`battery_temperature`, `is_powersupply_on`, `last_communication_time`, `next_communication_time`
+and `status_time`.
 
 > No date range required — returns current status snapshot.
 >
-> ⚠️ **Needs verification (2026-09-28):** Testo's changelog records `/v4/devices/status` being
-> added on top of this v3 path, renaming `last_communication`/`next_communication` to
-> `..._time`, removing `fw_code`/`fw_version` (now under `/v3/devices/properties`, used by
-> [Device Properties](#device-properties-post-v3devicesproperties--get-v3devicespropertiesuuid)
-> above), and adding `production_date`/`battery_temperature`/`status_time`. The changelog never
-> states v3 is deprecated, but the docs' own endpoint-overview page still only lists v3 — the two
-> sources disagree, so the version wasn't changed pending confirmation of which is actually
-> current. This package doesn't parse any device-status-specific fields into a typed DTO today
-> (only the generic async wrapper below), so the version gap is lower-risk than it looks, but
-> should move to v4 once confirmed live.
+> v4 is the only version in Testo's API reference; it replaced v3. Compared with v3 it renames
+> `last_communication`/`next_communication` to `..._time` and drops `fw_code`/`fw_version`, which
+> Device Properties still returns.
 
 ```php
 $submit = $client->submitSensorStatusRequest();
@@ -293,6 +292,8 @@ Returned by every `check*Status()` method.
 
 Helper methods: `isCompleted()`, `isProcessing()`, `isFailed()`
 
+`error` is read from Testo's `message`, falling back to an `error` key.
+
 ### `AsyncRequestStatus` enum
 
 ```php
@@ -301,11 +302,12 @@ use GraystackIT\TestoCloud\Enums\AsyncRequestStatus;
 AsyncRequestStatus::Submitted   // initial acknowledgment
 AsyncRequestStatus::Processing  // API is preparing data ("In Progress" normalised)
 AsyncRequestStatus::Completed   // data ready for download
-AsyncRequestStatus::Failed      // see $response->error
+AsyncRequestStatus::Failed      // Testo's "Error" — see $response->error
 AsyncRequestStatus::Unknown     // any status string Testo returns that isn't one of the above
 ```
 
-The enum normalises all API status strings, including `"In Progress"` → `Processing`. An
+The enum normalises all API status strings: Testo answers `"Completed"`, `"In Progress"` (→
+`Processing`) or `"Error"` (→ `Failed`). An
 unrecognized string never falls back to `Processing` — it maps to `Unknown` instead, so a
 future new terminal status can't get stuck looking like it's still in progress. Read
 `$response->rawStatus` to see the original string in that case.
@@ -334,11 +336,38 @@ try {
     $submit = $client->submitAlarmRequest(Carbon::parse('2025-01-01'), Carbon::parse('2025-02-01'));
 } catch (TestoApiException $e) {
     // HTTP errors, unexpected API responses
-    logger()->error($e->getMessage(), ['code' => $e->getCode()]);
+    logger()->error($e->getMessage(), ['code' => $e->getCode(), 'detail' => $e->detail]);
+
+    if ($e->isQuotaExceeded()) {
+        // The account used its 10,000 monthly POST requests; access returns on the 1st (UTC).
+    }
 }
 ```
 
-`submit*Request()` methods that accept a date range additionally throw `\InvalidArgumentException` when `$from >= $to`.
+Testo answers errors as `application/problem+json`; the exception carries its `problemType`
+(e.g. `ACCESS_DENIED`), `problemTitle` and `detail`.
+
+### Fair usage limit
+
+Each account may send **10,000 API requests per calendar month** (UTC). Only `submit*()` (POST)
+calls count — polling with `check*Status()` and downloading result files do not. Prefer one wide
+time range over many small, repeated requests, and fetch device metadata about once a day.
+
+`submit*Request()` methods that accept a date range additionally throw `\InvalidArgumentException` when `$from >= $to`,
+and every `submit*Request()` throws it for an OData option other than `$filter`, `$select` or `$orderby`.
+
+### OData filtering
+
+Every `submit*Request()` takes an optional `odata` array, sent as the request's `odata` object:
+
+```php
+$client->submitAlarmRequest($from, $to, odata: ['$filter' => "alarm_status eq 'Alarm'"]);
+$client->submitEquipmentRequest(odata: ['$select' => 'device_uuid,sensor_uuid,sensor_serial_no']);
+```
+
+Field names differ per endpoint — the sensor's serial number is `serial_no` on measurements and
+alarms but `sensor_serial_no` on device properties — and an unknown field is answered with
+400 Bad Request.
 
 If `TESTO_API_KEY` is not configured, a `\RuntimeException` is thrown on container resolution.
 
@@ -350,9 +379,9 @@ If `TESTO_API_KEY` is not configured, a `\RuntimeException` is thrown on contain
 |---|---|---|
 | Measurements | `POST /v2/measurements` | `GET /v2/measurements/{uuid}` |
 | Alarms | `POST /v3/alarms` | `GET /v3/alarms/{uuid}` |
-| Tasks | `POST /v3/tasks` | `GET /v3/tasks/{uuid}` |
+| Tasks (deprecated — not part of the API) | `POST /v3/tasks` | `GET /v3/tasks/{uuid}` |
 | Device Properties | `POST /v3/devices/properties` | `GET /v3/devices/properties/{uuid}` |
-| Device Status | `POST /v3/devices/status` | `GET /v3/devices/status/{uuid}` |
+| Device Status | `POST /v4/devices/status` | `GET /v4/devices/status/{uuid}` |
 | Measuring Objects | `POST /v1/measuring-objects` | `GET /v1/measuring-objects/{uuid}` |
 | Locations | `POST /v1/locations` | `GET /v1/locations/{uuid}` |
 
@@ -461,10 +490,11 @@ Stored in database: 2880
 ## Testing
 
 ```bash
-composer test
+TESTO_API_KEY=test-key composer test
 ```
 
-Tests use Saloon's `MockClient` — no real API calls are made.
+Tests use Saloon's `MockClient` — no real API calls are made. The service provider refuses to boot
+without a key, so any placeholder value is needed.
 
 ## License
 

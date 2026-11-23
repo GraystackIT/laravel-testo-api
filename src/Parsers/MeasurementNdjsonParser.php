@@ -19,22 +19,27 @@ class MeasurementNdjsonParser
      *   - physical_extension (string, optional — disambiguates e.g. an external probe
      *     reading from the logger's own internal sensor when both report the same
      *     physical_property_name)
-     *   - device_uuid (string, optional — present when account has multiple loggers)
+     *   - sensor_uuid / serial_no (the sensor the reading came from)
      *
-     * When $deviceUuid is provided, lines whose device_uuid does not match are
-     * silently dropped. This is critical for accounts with multiple loggers: the
-     * Testo /v2/measurements endpoint returns ALL devices' data for the credentials
-     * used, so without filtering, measurements from other devices corrupt the output.
+     * The Testo /v2/measurements endpoint returns the data of every logger of the
+     * account, so readings must be narrowed to one logger before use — otherwise
+     * readings of different loggers at the same timestamp overwrite each other.
+     * Measurement rows name the **sensor**, never the device: Testo's FAQ states
+     * that measurements have no `device_uuid`. To narrow to one logger, pass its
+     * sensors in `$sensorUuids` (from {@see \GraystackIT\TestoCloud\Data\LoggerDevice::$sensorUuids},
+     * read off /v3/devices/properties).
      *
-     * $deviceUuid filtering assumes measurement rows carry `device_uuid`. Testo's own
-     * migration guide instead documents `serial_no` as the sensor identifier on
-     * measurement values — unconfirmed against a live payload either way. Lines with
-     * no `device_uuid` key are never filtered out regardless, so this degrades safely
-     * (passes everything through) rather than silently dropping data if the field name
-     * turns out to be wrong.
+     * `$deviceUuid` is still honoured for rows that do carry `device_uuid`. A row
+     * without it cannot be attributed to a device and is kept; when that happens a
+     * warning is logged, because the result may then hold other loggers' readings.
      *
-     * Lines with the same timestamp are merged into a single entry.
+     * Lines with the same timestamp are merged into a single entry, so a logger
+     * whose temperature and humidity come from separate sensors still yields one
+     * row per timestamp.
      *
+     * @param  string  $ndjson  Raw NDJSON content of a measurements result file.
+     * @param  string|null  $deviceUuid  Keep only rows of this device, where rows carry `device_uuid`.
+     * @param  array<int, string>  $sensorUuids  Keep only rows of these sensors (`sensor_uuid`).
      * @return array<int, array{
      *     timestamp: string,
      *     temperature: ?float,
@@ -45,7 +50,7 @@ class MeasurementNdjsonParser
      *     humidity_extension: ?string,
      * }>
      */
-    public function parse(string $ndjson, ?string $deviceUuid = null): array
+    public function parse(string $ndjson, ?string $deviceUuid = null, array $sensorUuids = []): array
     {
         $lines = array_filter(
             explode("\n", $ndjson),
@@ -58,19 +63,12 @@ class MeasurementNdjsonParser
             return [];
         }
 
-        /**
-         * @var array<string, array{
-         *     timestamp: string,
-         *     temperature: ?float,
-         *     humidity: ?float,
-         *     temperature_unit: ?string,
-         *     humidity_unit: ?string,
-         *     temperature_extension: ?string,
-         *     humidity_extension: ?string,
-         * }> $grouped
-         */
+        $sensorFilter = array_fill_keys(array_map('strval', $sensorUuids), true);
+
         $grouped = [];
         $skippedWrongDevice = 0;
+        $skippedWrongSensor = 0;
+        $unattributable = 0;
 
         foreach ($lines as $line) {
             $decoded = json_decode(trim($line), true);
@@ -86,14 +84,20 @@ class MeasurementNdjsonParser
                 continue;
             }
 
-            if (
-                $deviceUuid !== null
-                && isset($decoded['device_uuid'])
-                && $decoded['device_uuid'] !== $deviceUuid
-            ) {
-                $skippedWrongDevice++;
+            if ($sensorFilter !== []) {
+                if (! isset($decoded['sensor_uuid']) || ! isset($sensorFilter[(string) $decoded['sensor_uuid']])) {
+                    $skippedWrongSensor++;
 
-                continue;
+                    continue;
+                }
+            } elseif ($deviceUuid !== null) {
+                if (! isset($decoded['device_uuid'])) {
+                    $unattributable++;
+                } elseif ($decoded['device_uuid'] !== $deviceUuid) {
+                    $skippedWrongDevice++;
+
+                    continue;
+                }
             }
 
             $timestamp    = (string) $decoded['timestamp'];
@@ -125,13 +129,23 @@ class MeasurementNdjsonParser
             }
         }
 
+        if ($unattributable > 0) {
+            Log::warning('MeasurementNdjsonParser: device filter could not be applied — rows carry no device_uuid; pass the device\'s sensor UUIDs instead', [
+                'device_uuid_filter' => $deviceUuid,
+                'unattributable_rows' => $unattributable,
+            ]);
+        }
+
         $result = array_values($grouped);
 
         Log::info('MeasurementNdjsonParser: parsed measurements', [
-            'total_lines'         => count($lines),
-            'unique_timestamps'   => count($result),
+            'total_lines'          => count($lines),
+            'unique_timestamps'    => count($result),
             'skipped_wrong_device' => $skippedWrongDevice,
-            'device_uuid_filter'  => $deviceUuid,
+            'skipped_wrong_sensor' => $skippedWrongSensor,
+            'unattributable_rows'  => $unattributable,
+            'device_uuid_filter'   => $deviceUuid,
+            'sensor_uuid_filter'   => array_keys($sensorFilter),
         ]);
 
         return $result;
